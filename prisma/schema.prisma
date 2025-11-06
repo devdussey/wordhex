@@ -147,3 +147,24 @@ model MatchmakingEntry {
 
   user User @relation(fields: [userId], references: [id])
 }
+
+model ErrorLog {
+  id           String   @id @default(cuid())
+  type         String   // ERROR_TYPE: API, DATABASE, NETWORK, AUTH, etc.
+  severity     String   // SEVERITY: LOW, MEDIUM, HIGH, CRITICAL
+  message      String   @db.Text
+  userMessage  String?  @db.Text
+  source       String   // SOURCE: FRONTEND, BACKEND
+  context      Json?    // Additional context data
+  stack        String?  @db.Text
+  userId       String?  // Optional: associated user
+  timestamp    DateTime @default(now())
+  webhookSent  Boolean  @default(false)
+  webhookError String?  @db.Text
+
+  @@index([type])
+  @@index([severity])
+  @@index([source])
+  @@index([timestamp])
+  @@index([userId])
+}
