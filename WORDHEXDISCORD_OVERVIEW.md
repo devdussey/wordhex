@@ -1,2 +1,0 @@
-# WordHexDiscord: Comprehensive Overview
-
