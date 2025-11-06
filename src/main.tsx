@@ -9,7 +9,7 @@ import { DiscordSDK } from '@discord/embedded-app-sdk';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { errorLogger } from './utils/errorLogger';
 import { ErrorType, ErrorSeverity } from './types/errors';
-import type { DiscordActivityContext, DiscordIdentity } from './types/discord';
+import type { DiscordActivityContext, DiscordIdentity, DiscordAuthorizeOptions } from './types/discord';
 
 // Debug utilities
 export const DEBUG = import.meta.env.DEV || import.meta.env.VITE_DEBUG === 'true';
@@ -206,14 +206,15 @@ async function initializeApp() {
           }
         })();
 
-        await discord.commands.authorize({
+        const authorizeOptions: DiscordAuthorizeOptions = {
           client_id: clientId,
           response_type: 'code',
           state,
           prompt: 'none',
           scope: ['identify', 'guilds'],
           // Required by Embedded App SDK: 1 = user-install context
-        } as any);
+        };
+        await discord.commands.authorize(authorizeOptions);
         debug('Discord authorization successful');
         trackEvent('discord_auth_success');
       } catch (authError) {

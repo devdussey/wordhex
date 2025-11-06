@@ -11,3 +11,11 @@ export interface DiscordActivityContext {
   channelId: string | null;
   instanceId: string | null;
 }
+
+export interface DiscordAuthorizeOptions {
+  client_id: string;
+  response_type: 'code';
+  state: string;
+  prompt: 'none' | 'consent';
+  scope: string[];
+}

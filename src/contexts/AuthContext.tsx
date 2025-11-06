@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api, realtime } from '../services/api';
-import type { DiscordIdentity } from '../types/discord';
+import type { DiscordAuthorizeOptions, DiscordIdentity } from '../types/discord';
 
 interface UserProfile {
   id: string;
@@ -152,13 +152,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })();
 
           try {
-            const response = await discordSdk.commands.authorize({
+            const authorizeOptions: DiscordAuthorizeOptions = {
               client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
               response_type: 'code',
               state,
-              prompt: 'none' as const, // Don't show consent screen for embedded app
+              prompt: 'none', // Embedded app should suppress Discord consent screen
               scope: ['identify', 'guilds'],
-            } as any);
+            };
+            const response = await discordSdk.commands.authorize(authorizeOptions);
 
             console.log('[auth] Discord authorization response:', response);
 
@@ -212,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(resolved.message);
       setLoading(false);
     }
-  }, []);
+  }, [completeLogin]);
 
   const signOut = useCallback(async () => {
     api.auth.clearToken();

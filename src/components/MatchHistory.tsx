@@ -37,13 +37,14 @@ export function MatchHistory({ onBack }: MatchHistoryProps) {
 
       const response = await api.stats.matches(user.id, 50);
       const records: MatchRecord[] = response.map((match: MatchHistoryEntry) => {
+        const matchWithLegacyId = match as MatchHistoryEntry & { matchId?: string };
         const players = match.players ?? [];
         const me = players.find((player) => player.userId === user.id);
         const completedAt = match.completedAt ?? match.updatedAt ?? match.createdAt;
         return {
           matchId:
             match.id ??
-            (match as any).matchId ??
+            matchWithLegacyId.matchId ??
             `match-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
           date: new Date(completedAt ?? Date.now()).toLocaleString(),
           score: me?.score ?? 0,

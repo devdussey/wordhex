@@ -110,7 +110,9 @@ function computeApiBase(): string {
         if (params.has('frame_id')) {
           enforceSameOrigin = false;
         }
-      } catch {}
+      } catch (error) {
+        console.warn('[api] Unable to inspect URL parameters for frame_id override', error);
+      }
 
       if (
         enforceSameOrigin &&

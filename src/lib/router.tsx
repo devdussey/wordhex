@@ -164,11 +164,13 @@ export function NavLink({ to, end = false, className, children }: NavLinkProps) 
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useLocation() {
   const { pathname } = useRouter();
   return useMemo(() => ({ pathname }), [pathname]);
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useNavigate() {
   const { navigate } = useRouter();
   return navigate;
