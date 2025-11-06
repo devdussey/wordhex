@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(test:*)",
+      "Bash(npm run lint)",
+      "Bash(git restore:*)",
+      "Bash(git fetch:*)",
+      "Bash(cd:*)",
+      "Bash(npm run setup:supabase:*)",
+      "Bash(npm run prisma:generate:*)",
+      "Bash(npm run prisma:migrate:*)",
+      "Bash(npx prisma migrate:*)",
+      "Bash(npm run prisma:seed:*)",
+      "Bash(npx prisma:*)",
+      "Bash(timeout 10 npm run server:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

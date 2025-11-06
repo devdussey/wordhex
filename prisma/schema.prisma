@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String      @id
+  discordId String?     @unique
+  username  String
+  coins     Int          @default(500)
+  gems      Int          @default(25)
+  cosmetics Json
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  stats     UserStats?
+  lobbies   Lobby[]     @relation("LobbyHost")
+  lobbyPlayers LobbyPlayer[]
+  sessions  Session[]
+  matchPlayers MatchPlayer[]
+  serverRecords ServerRecord[]
+  matchmakingEntries MatchmakingEntry[]
+}
+
+model UserStats {
+  userId         String  @id
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalMatches   Int     @default(0)
+  totalWins      Int     @default(0)
+  totalScore     Int     @default(0)
+  totalWords     Int     @default(0)
+  bestScore      Int     @default(0)
+  winStreak      Int     @default(0)
+  bestWinStreak  Int     @default(0)
+  updatedAt      DateTime @default(now())
+}
+
+model Lobby {
+  id         String       @id
+  code       String       @unique
+  serverId   String
+  hostId     String
+  host       User         @relation("LobbyHost", fields: [hostId], references: [id])
+  status     String
+  maxPlayers Int
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  players    LobbyPlayer[]
+  matches    Match[]
+}
+
+model LobbyPlayer {
+  id        String   @id @default(cuid())
+  lobbyId   String
+  userId    String
+  username  String
+  ready     Boolean  @default(false)
+  isHost    Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+
+  lobby Lobby @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([lobbyId, userId])
+}
+
+model Match {
+  id              String        @id
+  lobbyId         String?
+  lobby           Lobby?        @relation(fields: [lobbyId], references: [id])
+  status          String
+  currentPlayerId String?
+  roundNumber     Int           @default(1)
+  lastTurn        Json?
+  gridData        Json?
+  wordsFound      Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  completedAt     DateTime?
+
+  players         MatchPlayer[]
+}
+
+model MatchPlayer {
+  id           String  @id @default(cuid())
+  matchId      String
+  userId       String
+  username     String
+  score        Int
+  wordsFound   Json
+  roundsPlayed Int      @default(0)
+  rank         Int?
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([matchId, userId])
+}
+
+model Session {
+  id          String   @id
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  playerName  String
+  serverId    String
+  channelId   String?
+  status      String
+  score       Int      @default(0)
+  roundNumber Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+}
+
+model ServerRecord {
+  serverId      String   @id
+  userId        String
+  username      String
+  score         Int
+  wordsFound    Int      @default(0)
+  gemsCollected Int      @default(0)
+  achievedAt    DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model MatchmakingEntry {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  username  String
+  serverId  String
+  joinedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
