@@ -1,18 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { randomUUID, createHmac } from 'crypto';
+import { randomUUID } from 'crypto';
 import rateLimit from 'express-rate-limit';
-import bcryptjs from 'bcryptjs';
 import webhookService from '../server/webhookService.js';
-import { logBackendError, logDatabaseError, logAuthError } from '../server/errorLogger.js';
+import { logBackendError, logDatabaseError } from '../server/errorLogger.js';
 
 // Note: WebSocket not supported on Vercel Serverless Functions
 // Use Supabase Realtime instead (already configured in environment)
 
 import {
   upsertUser,
-  createGuestUser,
   createLobby,
   joinLobby,
   joinLobbyByCode,
@@ -85,18 +83,6 @@ const configuredOrigins = process.env.ALLOWED_ORIGINS
   : [];
 const allowedOrigins = [...defaultAllowedOrigins, ...configuredOrigins];
 
-const oauthStates = new Map(); // state -> { createdAt, returnTo }
-const OAUTH_STATE_TTL_MS = 5 * 60 * 1000;
-const DISCORD_OAUTH_SCOPES = ['identify', 'guilds'];
-
-function getDiscordClientId() {
-  return process.env.DISCORD_CLIENT_ID || process.env.VITE_DISCORD_CLIENT_ID;
-}
-
-function getDiscordClientSecret() {
-  return process.env.DISCORD_CLIENT_SECRET;
-}
-
 function isAllowedOrigin(origin) {
   return allowedOrigins.some((allowed) => {
     if (allowed === origin) return true;
@@ -106,102 +92,6 @@ function isAllowedOrigin(origin) {
     }
     return false;
   });
-}
-
-function getRequestBaseUrl(req) {
-  const forwardedProto = req.headers['x-forwarded-proto'];
-  const forwardedHost = req.headers['x-forwarded-host'];
-  const protocol = forwardedProto ? forwardedProto.split(',')[0] : req.protocol;
-  const host = forwardedHost ? forwardedHost.split(',')[0] : req.get('host');
-  return `${protocol}://${host}`;
-}
-
-function getDefaultReturnTo(req) {
-  if (process.env.DISCORD_SUCCESS_REDIRECT) {
-    return process.env.DISCORD_SUCCESS_REDIRECT;
-  }
-  const fallbackOrigin = allowedOrigins.find((origin) => !origin.endsWith('*'));
-  if (fallbackOrigin) {
-    return `${fallbackOrigin.replace(/\/$/, '')}/`;
-  }
-  const baseUrl = getRequestBaseUrl(req);
-  return `${baseUrl.replace(/\/$/, '')}/`;
-}
-
-function resolveReturnTo(req, rawReturnTo) {
-  const baseUrl = getRequestBaseUrl(req);
-  const defaultReturn = getDefaultReturnTo(req);
-  let value = null;
-  if (typeof rawReturnTo === 'string') {
-    value = rawReturnTo;
-  } else if (Array.isArray(rawReturnTo)) {
-    value = rawReturnTo[0] ?? null;
-  } else if (rawReturnTo != null) {
-    value = String(rawReturnTo);
-  }
-
-  if (!value) {
-    return defaultReturn;
-  }
-
-  try {
-    const url = new URL(value, baseUrl);
-    if (url.origin === baseUrl || isAllowedOrigin(url.origin)) {
-      return url.toString();
-    }
-  } catch (error) {
-    console.warn('[OAuth] Failed to parse returnTo URL', error);
-  }
-
-  return defaultReturn;
-}
-
-function pruneOauthStates() {
-  const now = Date.now();
-  for (const [state, details] of oauthStates.entries()) {
-    if (!details?.createdAt || now - details.createdAt > OAUTH_STATE_TTL_MS) {
-      oauthStates.delete(state);
-    }
-  }
-}
-
-function buildRedirectUrl(target, params) {
-  const url = new URL(target);
-  Object.entries(params).forEach(([key, value]) => {
-    if (value == null) return;
-    url.searchParams.set(key, value);
-  });
-  return url.toString();
-}
-
-function getDiscordRedirectUri(req) {
-  const baseUrl = getRequestBaseUrl(req).replace(/\/$/, '');
-  return `${baseUrl}/api/auth/discord/callback`;
-}
-
-function encodeProfilePayload(payload) {
-  const json = JSON.stringify(payload);
-  return Buffer.from(json)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '');
-}
-
-function consumeOauthState(state) {
-  if (!state) {
-    return null;
-  }
-
-  pruneOauthStates();
-  const details = oauthStates.get(state);
-  if (!details) {
-    return null;
-  }
-
-  oauthStates.delete(state);
-  const isExpired = !details.createdAt || Date.now() - details.createdAt > OAUTH_STATE_TTL_MS;
-  return { ...details, isExpired };
 }
 
 
@@ -225,17 +115,7 @@ function validateLobbyCode(code) {
 
 const corsHandler = (req, res, next) => {
   const origin = req.headers.origin;
-  if (
-    origin &&
-    allowedOrigins.some((allowed) => {
-      if (allowed === origin) return true;
-      if (allowed.endsWith('*')) {
-        const base = allowed.slice(0, -1);
-        return origin.startsWith(base);
-      }
-      return false;
-    })
-  ) {
+  if (origin && isAllowedOrigin(origin)) {
     res.header('Vary', 'Origin');
     res.header('Access-Control-Allow-Origin', origin);
   } else if (origin) {
@@ -277,378 +157,17 @@ const limiter = rateLimit({
   validate: { trustProxy: false }, // Skip trust proxy validation - we handle it ourselves
 });
 
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20, // Stricter limit for auth endpoints
-  message: 'Too many authentication attempts, please try again later.',
-  validate: { trustProxy: false }, // Skip trust proxy validation - we handle it ourselves
-});
-
 app.use('/api/', limiter);
-app.use('/api/auth/', authLimiter);
 
 // WebSocket and real-time updates are handled by Supabase Realtime
 // The backend will use publishSupabaseEvent() to broadcast changes
 // No local WebSocket server needed on Vercel
 
 // Routes
-app.get('/api/auth/discord/start', (req, res) => {
-  try {
-    const clientId = getDiscordClientId();
-    const clientSecret = getDiscordClientSecret();
-
-    if (!clientId || !clientSecret) {
-      console.error('[OAuth] Discord credentials are not configured');
-      return res.status(500).json({ error: 'Discord OAuth is not configured.' });
-    }
-
-    pruneOauthStates();
-
-    const returnTo = resolveReturnTo(req, req.query.returnTo);
-    const state = randomUUID();
-    oauthStates.set(state, {
-      createdAt: Date.now(),
-      returnTo,
-    });
-
-    const authorizeUrl = buildRedirectUrl('https://discord.com/oauth2/authorize', {
-      client_id: clientId,
-      response_type: 'code',
-      redirect_uri: getDiscordRedirectUri(req),
-      scope: DISCORD_OAUTH_SCOPES.join(' '),
-      prompt: 'consent',
-      state,
-    });
-
-    res.set('Cache-Control', 'no-store');
-    return res.json({ url: authorizeUrl });
-  } catch (error) {
-    console.error('auth/discord/start error', error);
-    return res.status(500).json({ error: 'Failed to start Discord login.' });
-  }
-});
-
-app.get('/api/auth/discord/callback', async (req, res) => {
-  const rawState = req.query.state;
-  const stateValue = Array.isArray(rawState) ? rawState[0] : rawState;
-  const stateDetails = consumeOauthState(stateValue);
-  const returnTo = stateDetails?.returnTo ?? getDefaultReturnTo(req);
-
-  const redirectWithError = (message, statusCode = 400) => {
-    if (statusCode >= 500) {
-      console.error('[OAuth] Discord callback error:', message);
-    }
-    const location = buildRedirectUrl(returnTo, { error: message });
-    return res.redirect(location);
-  };
-
-  if (!stateValue) {
-    return redirectWithError('We could not verify your Discord login. Please try again.');
-  }
-
-  if (!stateDetails) {
-    return redirectWithError('Your Discord login could not be validated. Please try again.');
-  }
-
-  if (stateDetails.isExpired) {
-    return redirectWithError('Your Discord login attempt expired. Please try again.');
-  }
-
-  const discordError = req.query.error;
-  const errorDescription = req.query.error_description;
-  if (discordError) {
-    const message =
-      typeof errorDescription === 'string' && errorDescription.length > 0
-        ? errorDescription
-        : 'Discord rejected the login attempt. Please try again.';
-    return redirectWithError(message);
-  }
-
-  const rawCode = req.query.code;
-  const code = Array.isArray(rawCode) ? rawCode[0] : rawCode;
-  if (!code) {
-    return redirectWithError('We did not receive a login code from Discord. Please try again.');
-  }
-
-  const clientId = getDiscordClientId();
-  const clientSecret = getDiscordClientSecret();
-
-  if (!clientId || !clientSecret) {
-    return redirectWithError('Discord login is not available right now. Please try again later.', 500);
-  }
-
-  // For Embedded App SDK authorize() flow, Discord expects redirect_uri to be 'http://localhost'
-  // When falling back to standard web OAuth, use our hosted callback URL.
-  const embedded = String(req.query.embedded || '').toLowerCase() === '1' || String(req.query.embedded || '').toLowerCase() === 'true';
-  const redirectUri = embedded ? 'http://localhost' : getDiscordRedirectUri(req);
-
-  try {
-    const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: redirectUri,
-      }).toString(),
-    });
-
-    if (!tokenResponse.ok) {
-      const body = await tokenResponse.text();
-      console.error('[OAuth] Failed to exchange Discord code', tokenResponse.status, body);
-      return redirectWithError('We could not verify your Discord login. Please try again later.', 500);
-    }
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-
-    if (!accessToken) {
-      console.error('[OAuth] Discord token response missing access_token', tokenData);
-      return redirectWithError('We could not verify your Discord login. Please try again later.', 500);
-    }
-
-    const userResponse = await fetch('https://discord.com/api/users/@me', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!userResponse.ok) {
-      const body = await userResponse.text();
-      console.error('[OAuth] Failed to fetch Discord profile', userResponse.status, body);
-      return redirectWithError('We could not fetch your Discord profile. Please try again later.', 500);
-    }
-
-    const discordUser = await userResponse.json();
-
-    if (!discordUser?.id) {
-      console.error('[OAuth] Discord profile missing id', discordUser);
-      return redirectWithError('We could not fetch your Discord profile. Please try again later.', 500);
-    }
-
-    const preferredUsername =
-      discordUser.global_name || discordUser.username || `Discord User ${discordUser.id}`;
-
-    const user = await upsertUser({
-      discordId: discordUser.id,
-      username: preferredUsername,
-    });
-
-    const profile = {
-      id: user.id,
-      username: user.username,
-      discordId: user.discordId,
-      email: user.email ?? null,
-      authType: 'discord',
-      coins: user.coins ?? 0,
-      gems: user.gems ?? 0,
-      cosmetics: user.cosmetics ?? ['default'],
-      createdAt: user.createdAt,
-      stats: user.stats,
-    };
-
-    const redirectLocation = buildRedirectUrl(returnTo, {
-      token: user.id,
-      profile: encodeProfilePayload(profile),
-    });
-
-    return res.redirect(redirectLocation);
-  } catch (error) {
-    console.error('auth/discord/callback error', error);
-    return redirectWithError('We could not complete your Discord login. Please try again later.', 500);
-  }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { discordId, username } = req.body ?? {};
-    if (!discordId && !username) {
-      return res.status(400).json({ error: 'discordId or username required' });
-    }
-    const user = await upsertUser({ discordId, username });
-    res.json({ token: user.id, user });
-  } catch (error) {
-    logAuthError(error, {
-      endpoint: '/api/auth/login',
-      discordId: req.body?.discordId,
-      hasUsername: !!req.body?.username
-    });
-    res.status(500).json({ error: 'Failed to login' });
-  }
-});
-
-// Embedded OAuth2 code exchange (no browser redirect)
-// Accepts { code } and returns { token, user }
-app.post('/api/auth/discord/exchange', async (req, res) => {
-  try {
-    const code = req.body?.code;
-    if (!code || typeof code !== 'string') {
-      return res.status(400).json({ error: 'code is required' });
-    }
-
-    const clientId = getDiscordClientId();
-    const clientSecret = getDiscordClientSecret();
-    if (!clientId || !clientSecret) {
-      return res.status(500).json({ error: 'Discord credentials not configured' });
-    }
-
-    const redirectUri = 'http://localhost';
-    const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: redirectUri,
-      }).toString(),
-    });
-
-    if (!tokenResponse.ok) {
-      const body = await tokenResponse.text();
-      console.error('[OAuth] Embedded exchange failed', tokenResponse.status, body);
-      return res.status(400).json({ error: 'Failed to exchange code' });
-    }
-
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-
-    const userResponse = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-
-    if (!userResponse.ok) {
-      const body = await userResponse.text();
-      console.error('[OAuth] Embedded profile fetch failed', userResponse.status, body);
-      return res.status(400).json({ error: 'Failed to fetch Discord profile' });
-    }
-
-    const discordUser = await userResponse.json();
-    const preferredUsername =
-      discordUser.global_name || discordUser.username || `Discord User ${discordUser.id}`;
-
-    const user = await upsertUser({
-      discordId: discordUser.id,
-      username: preferredUsername,
-    });
-
-    return res.json({ token: user.id, user });
-  } catch (error) {
-    console.error('auth/discord/exchange error', error);
-    return res.status(500).json({ error: 'Exchange failed' });
-  }
-});
-
-app.post('/api/auth/guest', async (_req, res) => {
-  try {
-    const user = await createGuestUser();
-    res.json({ token: user.id, user });
-  } catch (error) {
-    console.error('auth/guest error', error);
-    res.status(500).json({ error: 'Failed to create guest' });
-  }
-});
-
-// Email registration endpoint
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { email, password, username } = req.body ?? {};
-
-    // Validation
-    if (!email || !password || !username) {
-      return res.status(400).json({ error: 'email, password, and username are required' });
-    }
-
-    // Email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Invalid email format' });
-    }
-
-    // Password strength validation (min 8 chars, at least one number and one letter)
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      return res.status(400).json({ error: 'Password must contain at least one letter and one number' });
-    }
-
-    // Check if email already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
-    if (existingUser) {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-
-    // Hash password
-    const salt = await bcryptjs.genSalt(10);
-    const passwordHash = await bcryptjs.hash(password, salt);
-
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        id: randomUUID(),
-        email: email.toLowerCase(),
-        passwordHash,
-        username,
-        stats: {
-          create: {},
-        },
-      },
-    });
-
-    res.status(201).json({ token: user.id, user });
-  } catch (error) {
-    console.error('auth/register error', error);
-    if (error.code === 'P2002') {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-    res.status(500).json({ error: 'Failed to register' });
-  }
-});
-
-// Email login endpoint
-app.post('/api/auth/email-login', async (req, res) => {
-  try {
-    const { email, password } = req.body ?? {};
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email and password are required' });
-    }
-
-    // Find user by email
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
-
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    if (!user.passwordHash) {
-      return res.status(401).json({ error: 'This account is linked to Discord. Please use Discord login.' });
-    }
-
-    // Verify password
-    const isPasswordValid = await bcryptjs.compare(password, user.passwordHash);
-
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    res.json({ token: user.id, user });
-  } catch (error) {
-    console.error('auth/email-login error', error);
-    res.status(500).json({ error: 'Failed to login' });
-  }
+app.all(['/api/auth', '/api/auth/*'], (_req, res) => {
+  res.status(410).json({
+    error: 'Legacy authentication endpoints have been disabled. Please use Supabase authentication.',
+  });
 });
 
 app.post('/api/matchmaking/join', async (req, res) => {
@@ -1063,9 +582,6 @@ app.post('/api/webhooks/test', async (req, res) => {
     });
   }
 });
-
-// Clean up expired OAuth states every 5 minutes
-const oauthStatePruneInterval = setInterval(pruneOauthStates, 5 * 60 * 1000);
 
 // Global error handlers for uncaught exceptions and unhandled rejections
 process.on('uncaughtException', (error) => {
