@@ -1,12 +1,43 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import type { LucideIcon } from 'lucide-react';
+import { Gem, Lightbulb, RefreshCcw, RotateCcw, Shuffle, Sparkles, Timer, Trophy } from 'lucide-react';
 import { GameGrid } from '../components/GameGrid';
 import { generateGrid, isAdjacent } from '../utils/gridGenerator';
-import { calculateScore, isValidWord } from '../utils/scoring';
+import { calculateScore } from '../utils/scoring';
 import { Tile, SelectedTile, WordResult, GameState } from '../types/game';
 
 type GameProps = {
   session: Session;
+};
+
+type PrimaryAction = {
+  key: string;
+  label: string;
+  description: string;
+  disabled: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  gradient: string;
+};
+
+type AbilityAction = {
+  key: string;
+  label: string;
+  description: string;
+  cost: number;
+  disabled: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+};
+
+type StatCard = {
+  key: string;
+  label: string;
+  value: string;
+  helper?: string;
+  icon: LucideIcon;
+  accent: string;
 };
 
 const GAME_DURATION = 180; // 3 minutes
@@ -19,7 +50,7 @@ export function Game({ session }: GameProps) {
     score: 0,
     wordsFound: [],
     gemsCollected: 0,
-    gemsRemaining: 3,           // Start with 3 gems (SpellCast rule)
+    gemsRemaining: 3, // Start with 3 gems (SpellCast rule)
     timeLeft: GAME_DURATION,
     gameOver: false,
   }));
@@ -27,7 +58,6 @@ export function Game({ session }: GameProps) {
   const [message, setMessage] = useState<{ text: string; type: 'error' | 'success' }>({ text: '', type: 'success' });
   const [loading, setLoading] = useState(false);
 
-  // Timer effect
   useEffect(() => {
     if (gameState.gameOver) return;
 
@@ -47,21 +77,19 @@ export function Game({ session }: GameProps) {
   const handleTileSelect = (tile: Tile) => {
     setGameState((prev) => {
       const { selectedTiles } = prev;
-      const isAlreadySelected = selectedTiles.some(t => t.row === tile.row && t.col === tile.col);
+      const isAlreadySelected = selectedTiles.some((t) => t.row === tile.row && t.col === tile.col);
 
       if (isAlreadySelected) {
-        // Remove tile if already selected
         return {
           ...prev,
-          selectedTiles: selectedTiles.filter(t => !(t.row === tile.row && t.col === tile.col)),
+          selectedTiles: selectedTiles.filter((t) => !(t.row === tile.row && t.col === tile.col)),
           currentWord: selectedTiles
-            .filter(t => !(t.row === tile.row && t.col === tile.col))
-            .map(t => t.letter)
-            .join('')
+            .filter((t) => !(t.row === tile.row && t.col === tile.col))
+            .map((t) => t.letter)
+            .join(''),
         };
       }
 
-      // Check if tile is adjacent to the last selected tile
       if (selectedTiles.length > 0) {
         const lastTile = selectedTiles[selectedTiles.length - 1];
         if (!isAdjacent(lastTile, tile)) {
@@ -72,13 +100,13 @@ export function Game({ session }: GameProps) {
 
       const newSelectedTiles: SelectedTile[] = [
         ...selectedTiles,
-        { ...tile, index: selectedTiles.length }
+        { ...tile, index: selectedTiles.length },
       ];
 
       return {
         ...prev,
         selectedTiles: newSelectedTiles,
-        currentWord: newSelectedTiles.map(t => t.letter).join('')
+        currentWord: newSelectedTiles.map((t) => t.letter).join(''),
       };
     });
   };
@@ -94,10 +122,8 @@ export function Game({ session }: GameProps) {
       const result = await calculateScore(gameState.selectedTiles);
 
       if (result) {
-        // Check if any selected tiles are gems
-        const hasGemTile = gameState.selectedTiles.some(t => t.isGem);
+        const hasGemTile = gameState.selectedTiles.some((t) => t.isGem);
         const newGemsCollected = gameState.gemsCollected + (hasGemTile ? 1 : 0);
-        // Max 10 gems, remaining gems = collected but not yet used
         const newGemsRemaining = Math.min(newGemsCollected, 10);
 
         setGameState((prev) => ({
@@ -107,16 +133,17 @@ export function Game({ session }: GameProps) {
           selectedTiles: [],
           currentWord: '',
           gemsCollected: newGemsCollected,
-          gemsRemaining: newGemsRemaining
+          gemsRemaining: newGemsRemaining,
         }));
-        const gemBonus = hasGemTile ? ' 💎' : '';
-        setMessage({ text: `"${result.word}" +${result.score}pts!${gemBonus}`, type: 'success' });
+
+        const gemBonus = hasGemTile ? ' [Gem bonus]' : '';
+        setMessage({ text: `"${result.word}" +${result.score}pts${gemBonus}`, type: 'success' });
       } else {
         setMessage({ text: 'Invalid word!', type: 'error' });
         setGameState((prev) => ({
           ...prev,
           selectedTiles: [],
-          currentWord: ''
+          currentWord: '',
         }));
       }
     } finally {
@@ -128,7 +155,7 @@ export function Game({ session }: GameProps) {
     setGameState((prev) => ({
       ...prev,
       selectedTiles: [],
-      currentWord: ''
+      currentWord: '',
     }));
     setMessage({ text: '', type: 'success' });
   };
@@ -148,16 +175,16 @@ export function Game({ session }: GameProps) {
     setMessage({ text: '', type: 'success' });
   };
 
-  // Special Abilities (SpellCast mechanics)
   const handleShuffle = () => {
     if (gameState.gemsRemaining < 1) {
       setMessage({ text: 'Not enough gems! Need 1 gem.', type: 'error' });
       return;
     }
+
     setGameState((prev) => ({
       ...prev,
       grid: generateGrid(),
-      gemsRemaining: prev.gemsRemaining - 1
+      gemsRemaining: prev.gemsRemaining - 1,
     }));
     setMessage({ text: 'Grid shuffled! -1 gem', type: 'success' });
   };
@@ -171,10 +198,10 @@ export function Game({ session }: GameProps) {
       setMessage({ text: 'Select a tile to swap!', type: 'error' });
       return;
     }
+
     setGameState((prev) => {
-      const newGrid = prev.grid.map(row => [...row]);
+      const newGrid = prev.grid.map((row) => [...row]);
       const tileToSwap = prev.selectedTiles[0];
-      // Use letter frequencies from Scrabble
       const letters = ['E', 'T', 'A', 'O', 'I', 'N', 'S', 'H', 'R', 'D', 'L', 'C', 'U', 'M', 'W', 'F', 'G', 'Y', 'P', 'B', 'V', 'K', 'J', 'X', 'Q', 'Z'];
       const randomLetter = letters[Math.floor(Math.random() * letters.length)];
       newGrid[tileToSwap.row][tileToSwap.col].letter = randomLetter;
@@ -184,7 +211,7 @@ export function Game({ session }: GameProps) {
         grid: newGrid,
         selectedTiles: [],
         currentWord: '',
-        gemsRemaining: prev.gemsRemaining - 3
+        gemsRemaining: prev.gemsRemaining - 3,
       };
     });
     setMessage({ text: 'Letter swapped! -3 gems', type: 'success' });
@@ -195,10 +222,11 @@ export function Game({ session }: GameProps) {
       setMessage({ text: 'Not enough gems! Need 4 gems.', type: 'error' });
       return;
     }
+
     setMessage({ text: 'Hint: Try longer words for more points!', type: 'success' });
     setGameState((prev) => ({
       ...prev,
-      gemsRemaining: prev.gemsRemaining - 4
+      gemsRemaining: prev.gemsRemaining - 4,
     }));
   };
 
@@ -208,170 +236,374 @@ export function Game({ session }: GameProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const playerLabel =
+    (session.user.user_metadata?.full_name as string | undefined) ??
+    session.user.email ??
+    'Player';
+
+  const elapsedSeconds = Math.max(0, GAME_DURATION - gameState.timeLeft);
+  const elapsedPercent = Math.min(100, Math.max(0, (elapsedSeconds / GAME_DURATION) * 100));
+
+  const primaryActions: PrimaryAction[] = [
+    {
+      key: 'submit',
+      label: loading ? 'Submitting...' : 'Submit Word',
+      description: 'Lock in your current path for scoring.',
+      disabled: loading || gameState.gameOver || gameState.selectedTiles.length < 3,
+      onClick: handleSubmitWord,
+      icon: Sparkles,
+      gradient: 'from-emerald-500/80 via-teal-500 to-cyan-500/80',
+    },
+    {
+      key: 'clear',
+      label: 'Clear Selection',
+      description: 'Reset your current word and start fresh.',
+      disabled: gameState.gameOver || gameState.selectedTiles.length === 0,
+      onClick: handleClearSelection,
+      icon: RotateCcw,
+      gradient: 'from-rose-500/80 via-pink-500 to-fuchsia-500/80',
+    },
+  ];
+
+  const abilityActions: AbilityAction[] = [
+    {
+      key: 'shuffle',
+      label: 'Shuffle Grid',
+      description: 'Remix all letters instantly with a fresh draw.',
+      cost: 1,
+      disabled: gameState.gameOver || gameState.gemsRemaining < 1,
+      onClick: handleShuffle,
+      icon: Shuffle,
+    },
+    {
+      key: 'swap',
+      label: 'Morph Letter',
+      description:
+        gameState.selectedTiles.length === 0
+          ? 'Select a tile to morph it into a fresh letter.'
+          : 'Transform your first selected tile into something new.',
+      cost: 3,
+      disabled: gameState.gameOver || gameState.gemsRemaining < 3 || gameState.selectedTiles.length === 0,
+      onClick: handleSwapLetter,
+      icon: RefreshCcw,
+    },
+    {
+      key: 'hint',
+      label: 'Spark Hint',
+      description: 'Get a strategic nudge toward a higher scoring play.',
+      cost: 4,
+      disabled: gameState.gameOver || gameState.gemsRemaining < 4,
+      onClick: handleHint,
+      icon: Lightbulb,
+    },
+  ];
+
+  const quickStats: StatCard[] = [
+    {
+      key: 'score',
+      label: 'Score',
+      value: gameState.score.toLocaleString(),
+      helper: 'Total points this round',
+      icon: Trophy,
+      accent: 'from-amber-300 via-orange-400 to-orange-500',
+    },
+    {
+      key: 'words',
+      label: 'Words Found',
+      value: gameState.wordsFound.length.toString(),
+      helper: 'Unique submissions',
+      icon: Sparkles,
+      accent: 'from-pink-300 via-fuchsia-400 to-indigo-400',
+    },
+    {
+      key: 'gems',
+      label: 'Gems Ready',
+      value: gameState.gemsRemaining.toString(),
+      helper: `Earned ${gameState.gemsCollected}`,
+      icon: Gem,
+      accent: 'from-cyan-300 via-sky-400 to-emerald-400',
+    },
+    {
+      key: 'time',
+      label: 'Time Left',
+      value: formatTime(gameState.timeLeft),
+      helper: `${gameState.timeLeft}s remaining`,
+      icon: Timer,
+      accent: 'from-indigo-300 via-blue-400 to-violet-400',
+    },
+  ];
+
+  const topWord = gameState.wordsFound.reduce<WordResult | null>((best, current) => {
+    if (!best || current.score > best.score) {
+      return current;
+    }
+    return best;
+  }, null);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-fuchsia-950 pb-16">
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <header className="mb-6 text-center">
-          <h1 className="text-5xl font-bold text-white">WordHex</h1>
-          <p className="mt-2 text-purple-300">
-            Select adjacent tiles to form words
-          </p>
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 text-slate-100">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-3xl" />
+        <div className="absolute -bottom-28 -left-20 h-[22rem] w-[22rem] rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute bottom-16 right-0 h-[20rem] w-[20rem] rounded-full bg-emerald-500/10 blur-3xl" />
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-7xl px-6 py-12">
+        <header className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-center sm:text-left">
+            <p className="text-xs font-semibold uppercase tracking-[0.45em] text-fuchsia-200/80">WordHex Arcade</p>
+            <h1 className="mt-3 text-4xl font-black sm:text-5xl">Modern Match Experience</h1>
+            <p className="mt-3 max-w-xl text-base text-slate-300">
+              Link glowing tiles to craft high-scoring words before the neon timer fades out.
+            </p>
+          </div>
+          <div className="mx-auto flex max-w-sm items-center gap-4 rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left shadow-xl backdrop-blur sm:mx-0">
+            <div className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-200">
+              Session
+            </div>
+            <div className="flex-1">
+              <p className="text-[11px] uppercase tracking-[0.3em] text-slate-300/70">Player</p>
+              <p className="mt-1 truncate text-lg font-semibold text-white">{playerLabel}</p>
+            </div>
+          </div>
         </header>
 
-        <div className="grid gap-6 lg:grid-cols-4">
-          {/* Main game area */}
-          <div className="lg:col-span-2">
-            <div className="flex flex-col items-center gap-8">
-              {/* Game grid */}
-              <GameGrid
-                grid={gameState.grid}
-                selectedTiles={gameState.selectedTiles}
-                onTileSelect={handleTileSelect}
-                gameOver={gameState.gameOver}
-                inputMode="click"
-              />
-
-              {/* Current word display */}
-              <div className="w-full rounded-2xl border border-purple-800/60 bg-purple-900/40 p-6 text-center">
-                <p className="text-sm text-purple-400">Current Word</p>
-                <p className="mt-2 text-3xl font-bold text-white">{gameState.currentWord || '-'}</p>
-                <p className="mt-1 text-sm text-purple-300">
-                  ({gameState.selectedTiles.length} tiles selected)
-                </p>
+        <div className="mt-12 grid gap-8 xl:grid-cols-[1.55fr_1fr]">
+          <section className="space-y-6">
+            <div className="relative overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-[0_30px_90px_rgba(56,33,134,0.33)] backdrop-blur">
+              <div className="grid gap-4 min-[560px]:grid-cols-2 lg:grid-cols-4">
+                {quickStats.map((stat) => {
+                  const Icon = stat.icon;
+                  return (
+                    <div
+                      key={stat.key}
+                      className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4 transition hover:border-white/30"
+                    >
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${stat.accent} text-slate-900`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.4em] text-slate-300/80">{stat.label}</p>
+                        <p className="text-lg font-semibold text-white">{stat.value}</p>
+                        {stat.helper ? <p className="text-[11px] text-slate-400">{stat.helper}</p> : null}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* Action buttons */}
-              <div className="flex w-full gap-3">
-                <button
-                  onClick={handleSubmitWord}
-                  disabled={loading || gameState.gameOver || gameState.selectedTiles.length < 3}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Submit Word
-                </button>
-                <button
-                  onClick={handleClearSelection}
-                  disabled={gameState.gameOver}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-red-600 to-pink-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-red-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Clear
-                </button>
+              <div className="mt-8 flex justify-center">
+                <GameGrid
+                  grid={gameState.grid}
+                  selectedTiles={gameState.selectedTiles}
+                  onTileSelect={handleTileSelect}
+                  gameOver={gameState.gameOver}
+                  inputMode="click"
+                />
               </div>
 
-              {/* Special Abilities - SpellCast mechanics */}
-              <div className="w-full rounded-2xl border border-amber-500/40 bg-amber-900/20 p-4">
-                <p className="text-xs font-semibold text-amber-300 mb-3">SPECIAL ABILITIES (💎 {gameState.gemsRemaining})</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={handleShuffle}
-                    disabled={gameState.gameOver || gameState.gemsRemaining < 1}
-                    title="Cost: 1 gem"
-                    className="rounded-lg bg-gradient-to-b from-orange-600 to-orange-700 px-3 py-2 text-xs font-bold text-white shadow transition hover:from-orange-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    🔀 Shuffle<br />(1💎)
-                  </button>
-                  <button
-                    onClick={handleSwapLetter}
-                    disabled={gameState.gameOver || gameState.gemsRemaining < 3}
-                    title="Cost: 3 gems"
-                    className="rounded-lg bg-gradient-to-b from-blue-600 to-blue-700 px-3 py-2 text-xs font-bold text-white shadow transition hover:from-blue-500 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    🔄 Swap<br />(3💎)
-                  </button>
-                  <button
-                    onClick={handleHint}
-                    disabled={gameState.gameOver || gameState.gemsRemaining < 4}
-                    title="Cost: 4 gems"
-                    className="rounded-lg bg-gradient-to-b from-purple-600 to-purple-700 px-3 py-2 text-xs font-bold text-white shadow transition hover:from-purple-500 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    💡 Hint<br />(4💎)
-                  </button>
+              <div className="mt-8 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-[24px] border border-white/10 bg-black/30 px-6 py-5 backdrop-blur-sm">
+                  <p className="text-[11px] uppercase tracking-[0.35em] text-slate-300/70">Current Word</p>
+                  <p className="mt-3 text-4xl font-bold tracking-widest text-white">
+                    {gameState.currentWord || '---'}
+                  </p>
+                  <p className="mt-4 text-sm text-slate-300">
+                    {gameState.selectedTiles.length} tile{gameState.selectedTiles.length === 1 ? '' : 's'} selected
+                  </p>
+                  {gameState.selectedTiles.length > 0 && (
+                    <p className="mt-2 text-xs uppercase tracking-[0.6em] text-slate-400">
+                      {gameState.selectedTiles.map((t) => t.letter).join(' ')}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {primaryActions.map((action) => {
+                    const Icon = action.icon;
+                    const interactiveClass = action.disabled
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'hover:-translate-y-1 hover:border-white/30 hover:bg-white/10 hover:shadow-lg';
+                    return (
+                      <button
+                        key={action.key}
+                        onClick={action.onClick}
+                        disabled={action.disabled}
+                        className={`group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/5 px-5 py-4 text-left transition ${interactiveClass}`}
+                      >
+                        <div className={`absolute inset-0 bg-gradient-to-r ${action.gradient} opacity-0 transition group-hover:opacity-20`} />
+                        <div className="relative flex items-start gap-3">
+                          <span className="rounded-xl border border-white/20 bg-black/30 p-2">
+                            <Icon className="h-5 w-5 text-white" />
+                          </span>
+                          <div>
+                            <p className="text-sm font-semibold text-white">{action.label}</p>
+                            <p className="mt-1 text-xs text-slate-200/80">{action.description}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Message display */}
+              <div className="mt-8 rounded-[24px] border border-amber-400/30 bg-amber-500/10 px-6 py-6 backdrop-blur-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 text-amber-100">
+                    <Sparkles className="h-5 w-5" />
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.4em]">Gem Abilities</p>
+                  </div>
+                  <div className="flex items-center gap-2 rounded-full border border-amber-200/20 bg-black/30 px-3 py-1 text-xs font-semibold text-amber-100">
+                    <Gem className="h-4 w-4" />
+                    <span>{gameState.gemsRemaining}</span>
+                    <span className="text-amber-100/70">/ 10</span>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  {abilityActions.map((ability) => {
+                    const Icon = ability.icon;
+                    const abilityClass = ability.disabled
+                      ? 'cursor-not-allowed opacity-50'
+                      : 'hover:-translate-y-1 hover:border-amber-200/40 hover:bg-black/40';
+                    return (
+                      <button
+                        key={ability.key}
+                        onClick={ability.onClick}
+                        disabled={ability.disabled}
+                        className={`group relative flex flex-col rounded-2xl border border-amber-200/15 bg-black/30 px-4 py-4 text-left transition ${abilityClass}`}
+                      >
+                        <div className="flex items-center justify-between text-amber-100">
+                          <span className="flex items-center gap-2 text-sm font-semibold">
+                            <Icon className="h-4 w-4" />
+                            {ability.label}
+                          </span>
+                          <span className="flex items-center gap-1 rounded-full border border-amber-200/30 bg-amber-400/15 px-2 py-[2px] text-[11px] font-bold">
+                            <Gem className="h-3 w-3" />
+                            {ability.cost}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-amber-100/75">{ability.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {message.text && (
                 <div
-                  className={`w-full rounded-xl p-4 text-center font-semibold ${
+                  className={`mt-6 rounded-2xl border px-5 py-4 text-sm font-semibold ${
                     message.type === 'success'
-                      ? 'bg-green-500/20 text-green-300 border border-green-500/50'
-                      : 'bg-red-500/20 text-red-300 border border-red-500/50'
+                      ? 'border-emerald-400/50 bg-emerald-500/10 text-emerald-200'
+                      : 'border-rose-400/60 bg-rose-500/10 text-rose-200'
                   }`}
                 >
                   {message.text}
                 </div>
               )}
             </div>
-          </div>
+          </section>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Stats Panel */}
-            <div className="rounded-3xl border-2 border-cyan-500/40 bg-gradient-to-br from-cyan-900/20 to-blue-900/20 p-6 backdrop-blur">
-              <h3 className="text-2xl font-bold text-cyan-300">STATS</h3>
-              <div className="mt-6 space-y-4">
-                <div className="flex items-center justify-between rounded-lg bg-black/30 p-3">
-                  <span className="text-cyan-300 font-semibold">SCORE</span>
-                  <span className="text-4xl font-bold text-cyan-400">{gameState.score}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-black/30 p-3">
-                  <span className="text-yellow-300 font-semibold">TIME</span>
-                  <span className={`text-3xl font-bold font-mono ${gameState.timeLeft <= 30 ? 'text-red-400 animate-pulse' : 'text-yellow-400'}`}>
-                    {formatTime(gameState.timeLeft)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-black/30 p-3">
-                  <span className="text-amber-300 font-semibold">GEMS</span>
-                  <div className="text-right">
-                    <div className="text-3xl font-bold text-amber-400">💎 {gameState.gemsRemaining}</div>
-                    <div className="text-xs text-amber-300">Earned: {gameState.gemsCollected}</div>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-black/30 p-3">
-                  <span className="text-blue-300 font-semibold">WORDS</span>
-                  <span className="text-3xl font-bold text-blue-400">{gameState.wordsFound.length}</span>
+          <aside className="space-y-6">
+            <div className="rounded-[28px] border border-white/10 bg-white/5 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.45)] backdrop-blur">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-white">Round Status</h2>
+                <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.35em] text-slate-200">
+                  <Timer className="h-4 w-4 text-amber-200" />
+                  <span>{formatTime(gameState.timeLeft)}</span>
                 </div>
               </div>
+
+              <div className="mt-4">
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-900/60">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-fuchsia-400 via-pink-400 to-amber-300 transition-[width] duration-500"
+                    style={{ width: `${elapsedPercent}%` }}
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] uppercase tracking-[0.35em] text-slate-400">
+                  <span>{elapsedSeconds}s elapsed</span>
+                  <span>{gameState.timeLeft}s remaining</span>
+                </div>
+              </div>
+
+              {topWord ? (
+                <div className="mt-6 rounded-2xl border border-white/10 bg-black/30 px-5 py-4">
+                  <p className="text-[11px] uppercase tracking-[0.35em] text-slate-300/70">Best Word</p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-lg font-semibold tracking-wide text-white">{topWord.word.toUpperCase()}</span>
+                    <span className="text-emerald-300 font-semibold">+{topWord.score}</span>
+                  </div>
+                  {topWord.multipliers.length > 0 && (
+                    <p className="mt-2 text-xs text-slate-300/70">Boosts: {topWord.multipliers.join(' | ')}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-6 rounded-2xl border border-dashed border-white/15 px-5 py-6 text-center text-sm text-slate-300/70">
+                  Submit a word to unlock insights.
+                </div>
+              )}
+
+              {gameState.gameOver ? (
+                <div className="mt-6 rounded-2xl border border-fuchsia-400/50 bg-fuchsia-500/10 px-6 py-6 text-center">
+                  <h3 className="text-lg font-semibold text-white">Time's up!</h3>
+                  <p className="mt-2 text-sm text-fuchsia-100">
+                    Final score {gameState.score.toLocaleString()}
+                  </p>
+                  <button
+                    onClick={handleNewGame}
+                    className="mt-4 w-full rounded-xl bg-gradient-to-r from-fuchsia-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-fuchsia-600 hover:to-indigo-600"
+                  >
+                    Start New Round
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-6 text-sm text-slate-300/80">
+                  Keep chaining tiles to climb the leaderboard and bank more gems.
+                </p>
+              )}
             </div>
 
-            {/* Game over overlay */}
-            {gameState.gameOver && (
-              <div className="rounded-2xl border-2 border-pink-500 bg-pink-500/20 p-6 text-center">
-                <h3 className="text-2xl font-bold text-white">Game Over!</h3>
-                <p className="mt-4 text-lg font-bold text-pink-300">Final Score: {gameState.score}</p>
-                <button
-                  onClick={handleNewGame}
-                  className="mt-4 w-full rounded-xl bg-gradient-to-r from-pink-600 to-fuchsia-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-pink-700 hover:to-fuchsia-700"
-                >
-                  Play Again
-                </button>
+            <div className="rounded-[28px] border border-white/10 bg-white/5 p-6 shadow-[0_18px_50px_rgba(15,23,42,0.4)] backdrop-blur">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Word Feed</h2>
+                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-0.5 text-xs font-semibold text-slate-200">
+                  {gameState.wordsFound.length}
+                </span>
               </div>
-            )}
 
-            {/* Words found */}
-            <div className="rounded-3xl border-2 border-pink-500/40 bg-gradient-to-br from-pink-900/20 to-purple-900/20 p-6 backdrop-blur">
-              <h3 className="text-2xl font-bold text-pink-300">WORDS ({gameState.wordsFound.length})</h3>
-              <div className="mt-4 max-h-96 space-y-2 overflow-y-auto">
+              <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
                 {gameState.wordsFound.length === 0 ? (
-                  <div className="text-center text-purple-400 py-8">Select tiles and form words!</div>
+                  <div className="rounded-2xl border border-dashed border-white/15 px-4 py-10 text-center text-sm text-slate-300/80">
+                    Start linking letters to populate this feed.
+                  </div>
                 ) : (
                   gameState.wordsFound.map((result, idx) => (
-                    <div key={idx} className="rounded-lg bg-black/30 p-3 border border-pink-500/20 hover:border-pink-500/60 transition">
+                    <div
+                      key={`${result.word}-${idx}`}
+                      className="group rounded-2xl border border-white/10 bg-black/30 px-4 py-3 transition hover:border-fuchsia-400/50 hover:bg-black/40"
+                    >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-pink-300 text-lg">{result.word.toUpperCase()}</span>
-                        <span className="text-green-400 font-bold text-xl">+{result.score}</span>
+                        <span className="text-base font-semibold tracking-wide text-white">
+                          {result.word.toUpperCase()}
+                        </span>
+                        <span className="text-emerald-300 font-semibold">+{result.score}</span>
                       </div>
-                      {result.multipliers.length > 0 && (
-                        <div className="mt-1 text-xs text-blue-300 font-semibold">
-                          {result.multipliers.join(' • ')}
-                        </div>
-                      )}
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.35em] text-slate-400">
+                        <span>{result.word.length} letters</span>
+                        <span>Base {result.baseScore}</span>
+                        {result.multipliers.length > 0 && (
+                          <span className="rounded-full border border-fuchsia-400/30 bg-fuchsia-500/10 px-2 py-[2px] text-[10px] font-semibold text-fuchsia-100">
+                            {result.multipliers.join(' | ')}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </div>
     </div>
