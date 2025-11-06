@@ -9,12 +9,5 @@
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/api/leaderboard",
     "healthcheckTimeout": 300
-  },
-  "variables": {
-      "DATABASE_URL": "${{ POSTGRES_URL }}",
-      "NODE_ENV": "production",
-      "PORT": "3001",
-      "TRUST_PROXY": "1",
-      "ALLOWED_ORIGINS": "https://wordhex-discord-app.vercel.app,https://*.discordsays.com,https://discord.com,http://localhost:3000"
-    }
+  }
 }
