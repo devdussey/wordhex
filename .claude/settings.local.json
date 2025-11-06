@@ -49,7 +49,8 @@
       "WebFetch(domain:discord.fandom.com)",
       "Bash(git config:*)",
       "Bash(git log:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

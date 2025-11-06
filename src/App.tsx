@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { Navigate, Route, Router, Routes } from './lib/router';
-import { supabase } from './lib/supabaseClient';
-import { Navbar } from './components/Navbar';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { Leaderboard } from './pages/Leaderboard';
-import { Game } from './pages/Game';
+import { Navigate, Route, Router, Routes, supabase } from './lib';
+import { Navbar, ProtectedRoute } from './components';
+import { Login, Dashboard, Leaderboard, Game } from './pages';
 
 function OAuthCallback() {
   useEffect(() => {
