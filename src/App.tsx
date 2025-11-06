@@ -43,18 +43,12 @@ export default function App() {
     });
 
     // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+   supabase.auth.onAuthStateChange((event, session) => {
+  discordLogger.info(`Auth event: ${event}`, "Supabase", {
+    user: session?.user?.email ?? "guest",
+  });
+});
 
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
 
   if (loading) {
     return (
