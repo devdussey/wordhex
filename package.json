@@ -71,7 +71,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "frame-ancestors https://*.discord.com https://*.discordapp.com https://*.discordsays.com; connect-src 'self' https://*.discord.com https://discord.com https://*.discordapp.com https://*.discordsays.com https://wordhex-backend-production.up.railway.app wss://wordhex-backend-production.up.railway.app https://*.railway.app wss://*.railway.app https://vitals.vercel-insights.com sentry-ipc:;"
+            "value": "frame-ancestors https://*.discord.com https://*.discordapp.com https://*.discordsays.com; connect-src 'self' data: blob: https://*.discord.com https://discord.com https://*.discordapp.com https://cdn.discordapp.com https://*.discord.gg https://*.discordmedia.net https://*.discordsays.com https://wordhex-backend-production.up.railway.app wss://wordhex-backend-production.up.railway.app https://*.railway.app wss://*.railway.app wss://gateway.discord.gg https://vitals.vercel-insights.com;"
           },
           {
             "key": "Cross-Origin-Opener-Policy",
