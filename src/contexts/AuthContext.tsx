@@ -125,11 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     api.auth.clearToken();
     persistProfile(null);
-    const returnTo = window.location.href;
 
     try {
-      const url = await api.auth.getDiscordAuthUrl(returnTo);
-
       // Check if running in Discord embedded activity
       const discordSdk = window.__WORDHEX_DISCORD_SDK__;
       if (discordSdk) {
@@ -139,20 +136,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
             response_type: 'code',
             state: '',
-            prompt: 'none',
+            prompt: 'consent', // Show consent screen
             scope: ['identify', 'guilds'],
           });
           // After authorization, the SDK will handle the callback
+          console.log('[auth] Discord authorization successful via SDK');
           setLoading(false);
         } catch (sdkError) {
           console.error('[auth] Discord SDK authorization failed', sdkError);
-          // Fallback: try opening in new window
-          window.open(url, '_blank');
+          setError('Discord authorization was denied or failed');
           setLoading(false);
         }
       } else {
-        // Not in Discord, use standard redirect
-        window.open(url, '_top');
+        // Not in Discord, try fallback OAuth
+        const returnTo = window.location.href;
+        const url = await api.auth.getDiscordAuthUrl(returnTo);
+        window.open(url, '_blank');
+        setLoading(false);
       }
     } catch (error) {
       const resolved = resolveError(error, 'Failed to start Discord login');
