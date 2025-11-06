@@ -1,53 +1,64 @@
-import { useEffect, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { Navigate, Route, Router, Routes } from './lib/router';
-import { supabase } from './lib/supabaseClient';
-import { Navbar } from './components/Navbar';
-import { ProtectedRoute } from './components/ProtectedRoute';
-import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { Leaderboard } from './pages/Leaderboard';
-import { Game } from './pages/Game';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
+import Dashboard from "./pages/Dashboard";
+import Game from "./pages/Game";
+import Leaderboard from "./pages/Leaderboard";
+import Login from "./pages/Login";
+import type { AuthSession, LocalSession, PlayerStats } from "./types";
 
-export function App() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+const LOCAL_SESSION_KEY = "wordhex:local-session";
+const STATS_STORAGE_KEY = "wordhex:stats";
 
-  useEffect(() => {
-    const syncSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session ?? null);
-      setLoading(false);
-    };
+const DEFAULT_STATS: PlayerStats = {
+  gamesPlayed: 0,
+  totalScore: 0,
+  bestScore: 0,
+  totalWordsFound: 0,
+  recentWords: [],
+};
 
-    void syncSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setLoading(false);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950">
-        <div className="flex flex-col items-center gap-4 text-purple-100">
-          <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
-          <p>Connecting to Supabase…</p>
-        </div>
-      </div>
-    );
+function loadStats(): PlayerStats {
+  if (typeof window === "undefined") {
+    return DEFAULT_STATS;
   }
+
+  try {
+    const raw = window.localStorage.getItem(STATS_STORAGE_KEY);
+    if (!raw) {
+      return DEFAULT_STATS;
+    }
+    const parsed = JSON.parse(raw) as PlayerStats;
+    return {
+      ...DEFAULT_STATS,
+      ...parsed,
+      recentWords: Array.isArray(parsed.recentWords) ? parsed.recentWords : [],
+    };
+  } catch (error) {
+    console.error("Unable to parse stored stats", error);
+    return DEFAULT_STATS;
+  }
+}
+
+function loadLocalSession(): LocalSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOCAL_SESSION_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as LocalSession;
+    return parsed;
+  } catch (error) {
+    console.error("Unable to parse stored session", error);
+    return null;
+  }
+}
 
   return (
     <Router>
