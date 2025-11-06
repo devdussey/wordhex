@@ -1,39 +1,72 @@
+import { getWordSet } from '../lib/wordService';
 import { SelectedTile, WordResult } from '../types/game';
 
 // SpellCast official letter values
 const LETTER_SCORES: Record<string, number> = {
-  'A': 1, 'E': 1, 'I': 1, 'O': 1,  // 1 point
-  'N': 2, 'R': 2, 'S': 2, 'T': 2,  // 2 points
-  'D': 3, 'G': 3, 'L': 3,          // 3 points
-  'B': 4, 'H': 4, 'P': 4, 'M': 4, 'U': 4, 'Y': 4,  // 4 points
-  'C': 5, 'F': 5, 'V': 5, 'W': 5,  // 5 points
-  'K': 6,                          // 6 points
-  'J': 7, 'X': 7,                  // 7 points
-  'Q': 8, 'Z': 8                   // 8 points
+  A: 1,
+  E: 1,
+  I: 1,
+  O: 1,
+  N: 2,
+  R: 2,
+  S: 2,
+  T: 2,
+  D: 3,
+  G: 3,
+  L: 3,
+  B: 4,
+  H: 4,
+  P: 4,
+  M: 4,
+  U: 4,
+  Y: 4,
+  C: 5,
+  F: 5,
+  V: 5,
+  W: 5,
+  K: 6,
+  J: 7,
+  X: 7,
+  Q: 8,
+  Z: 8,
 };
 
-let validWordsCache: Set<string> | null = null;
+const FALLBACK_WORDS = new Set<string>([
+  'word',
+  'words',
+  'game',
+  'games',
+  'hex',
+  'spell',
+  'cast',
+  'score',
+  'scores',
+  'tile',
+  'tiles',
+  'letters',
+  'letter',
+]);
 
-async function getValidWords(): Promise<Set<string>> {
-  if (validWordsCache) return validWordsCache;
+async function loadWordSet(): Promise<Set<string>> {
   try {
-    const { validWords } = await import('../lib/wordlist');
-    validWordsCache = validWords;
-    return validWords;
+    return await getWordSet();
   } catch (error) {
-    console.warn('Wordlist not available, using basic validation');
-    // Fallback: return a set of common words if wordlist fails to load
-    return new Set();
+    console.error('Falling back to minimal word list:', error);
+    return FALLBACK_WORDS;
   }
 }
 
 export async function isValidWord(word: string): Promise<boolean> {
-  const validWords = await getValidWords();
-  return word.length >= 3 && validWords.has(word.toLowerCase());
+  const normalized = word.trim().toLowerCase();
+  if (normalized.length < 3) {
+    return false;
+  }
+  const validWords = await loadWordSet();
+  return validWords.has(normalized);
 }
 
 export async function calculateScore(tiles: SelectedTile[]): Promise<WordResult | null> {
-  const word = tiles.map(t => t.letter).join('');
+  const word = tiles.map((tile) => tile.letter).join('');
 
   if (!(await isValidWord(word))) {
     return null;
@@ -44,7 +77,8 @@ export async function calculateScore(tiles: SelectedTile[]): Promise<WordResult 
   const multipliers: string[] = [];
 
   for (const tile of tiles) {
-    let letterScore = LETTER_SCORES[tile.letter] || 1;
+    const letterKey = tile.letter.toUpperCase();
+    let letterScore = LETTER_SCORES[letterKey] ?? 1;
 
     if (tile.multiplier === 'DL') {
       letterScore *= 2;
@@ -63,7 +97,6 @@ export async function calculateScore(tiles: SelectedTile[]): Promise<WordResult 
     baseScore += letterScore;
   }
 
-  // SpellCast long word bonus: +10 points for 6+ letter words
   const lengthBonus = word.length >= 6 ? 10 : 0;
   const finalScore = baseScore * wordMultiplier + lengthBonus;
 
@@ -71,6 +104,6 @@ export async function calculateScore(tiles: SelectedTile[]): Promise<WordResult 
     word,
     score: finalScore,
     baseScore,
-    multipliers
+    multipliers,
   };
 }

@@ -48,6 +48,12 @@ CREATE TABLE IF NOT EXISTS words (
   UNIQUE(value)
 );
 
+-- 4b. Create word_bank table for high-volume dictionary lookups
+CREATE TABLE IF NOT EXISTS word_bank (
+  word TEXT PRIMARY KEY,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- 5. Create leaderboard table (view based on player_stats)
 -- Using a materialized view for better performance
 CREATE OR REPLACE VIEW leaderboard_view AS
@@ -73,6 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_match_history_opponent_id ON match_history(oppone
 CREATE INDEX IF NOT EXISTS idx_match_history_created_at ON match_history(created_at);
 CREATE INDEX IF NOT EXISTS idx_words_difficulty ON words(difficulty);
 CREATE INDEX IF NOT EXISTS idx_words_category ON words(category);
+CREATE INDEX IF NOT EXISTS idx_word_bank_word ON word_bank(word);
 
 -- 7. Create functions for auto-updating updated_at timestamp
 CREATE OR REPLACE FUNCTION update_player_stats_timestamp()
@@ -108,6 +115,7 @@ ON CONFLICT (value) DO NOTHING;
 ALTER TABLE player_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE match_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE words ENABLE ROW LEVEL SECURITY;
+ALTER TABLE word_bank ENABLE ROW LEVEL SECURITY;
 
 -- Players can only read all player stats (for leaderboard)
 CREATE POLICY "Anyone can view player_stats"
@@ -160,6 +168,29 @@ CREATE POLICY "Authenticated users can update words"
   FOR UPDATE
   USING (true)
   WITH CHECK (true);
+
+-- Public read access to word bank so clients can validate words
+CREATE POLICY "Anyone can read word_bank"
+  ON word_bank
+  FOR SELECT
+  USING (true);
+
+-- Limit modifications to service role by default (adjust as needed)
+CREATE POLICY "Service role inserts word_bank"
+  ON word_bank
+  FOR INSERT
+  WITH CHECK (auth.role() = 'service_role');
+
+CREATE POLICY "Service role updates word_bank"
+  ON word_bank
+  FOR UPDATE
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+CREATE POLICY "Service role deletes word_bank"
+  ON word_bank
+  FOR DELETE
+  USING (auth.role() = 'service_role');
 
 -- Print success message
 SELECT 'WordHex Supabase Schema Setup Complete!' as status;
