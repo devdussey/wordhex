@@ -25,7 +25,9 @@
       "Bash(railway list:*)",
       "Bash(railway status:*)",
       "Bash(railway init:*)",
-      "WebFetch(domain:discord.com)"
+      "WebFetch(domain:discord.com)",
+      "Bash(find:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

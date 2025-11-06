@@ -22,9 +22,6 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   getUsername: () => string;
   loginWithDiscord: () => Promise<void>;
-  loginAsGuest: (username: string) => Promise<void>;
-  registerWithEmail: (email: string, password: string, username: string) => Promise<void>;
-  loginWithEmail: (email: string, password: string) => Promise<void>;
 }
 
 const STORAGE_KEY = 'wordhex_profile';
@@ -180,57 +177,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     realtime.disconnect();
   }, []);
 
-  const loginAsGuest = useCallback(
-    async (username: string) => {
-      setLoading(true);
-      try {
-        api.auth.clearToken();
-        persistProfile(null);
-        const payload = { username };
-        const response = await api.auth.identityLogin(payload);
-        completeLogin(response.user as UserProfile);
-      } catch (error) {
-        throw resolveError(error, 'Failed to start guest session');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [completeLogin]
-  );
-
-  const registerWithEmail = useCallback(
-    async (email: string, password: string, username: string) => {
-      setLoading(true);
-      try {
-        api.auth.clearToken();
-        persistProfile(null);
-        const response = await api.auth.registerEmail({ email, password, username });
-        completeLogin(response.user as UserProfile);
-      } catch (error) {
-        throw resolveError(error, 'Failed to register email account');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [completeLogin]
-  );
-
-  const loginWithEmail = useCallback(
-    async (email: string, password: string) => {
-      setLoading(true);
-      try {
-        api.auth.clearToken();
-        persistProfile(null);
-        const response = await api.auth.loginWithEmail({ email, password });
-        completeLogin(response.user as UserProfile);
-      } catch (error) {
-        throw resolveError(error, 'Failed to login');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [completeLogin]
-  );
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -281,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const friendlyMessage =
           loginError instanceof Error && loginError.message
             ? loginError.message
-            : 'We could not authenticate with Discord. Please reload the activity or choose another login method.';
+            : 'We could not authenticate with Discord. Please reload the activity.';
 
         setError(friendlyMessage);
         api.auth.clearToken();
@@ -353,13 +299,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       error,
       signOut,
       loginWithDiscord,
-      loginAsGuest,
-      registerWithEmail,
-      loginWithEmail,
       getUsername: () => user?.username || 'Player',
       clearError,
     }),
-    [user, loading, error, signOut, loginWithDiscord, loginAsGuest, registerWithEmail, loginWithEmail, clearError]
+    [user, loading, error, signOut, loginWithDiscord, clearError]
   );
 
   return (
