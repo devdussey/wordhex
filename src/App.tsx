@@ -9,6 +9,32 @@ import { Dashboard } from './pages/Dashboard';
 import { Leaderboard } from './pages/Leaderboard';
 import { Game } from './pages/Game';
 
+function OAuthCallback() {
+  useEffect(() => {
+    // Supabase automatically processes OAuth callback from URL
+    // Just wait for auth state to update and redirect
+    const timer = setTimeout(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        window.location.href = '/';
+      } else {
+        window.location.href = '/login';
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950">
+      <div className="flex flex-col items-center gap-4 text-purple-100">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
+        <p>Completing sign in...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +75,7 @@ export default function App() {
     <Router>
       {session && <Navbar user={session.user} onSignOut={() => void handleSignOut()} />}
       <Routes>
+        <Route path="/callback" element={<OAuthCallback />} />
         <Route path="/login" element={<Login session={session} />} />
         <Route
           path="/"

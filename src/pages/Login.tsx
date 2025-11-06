@@ -18,7 +18,7 @@ export function Login({ session }: LoginProps) {
   const handleDiscordLogin = async () => {
     setError(null);
     setLoading(true);
-    const redirectTo = `${window.location.origin}`;
+    const redirectTo = `${window.location.origin}/callback`;
 
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: 'discord',
