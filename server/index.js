@@ -582,7 +582,10 @@ app.get('/api/auth/discord/callback', async (req, res) => {
     return redirectWithError('Discord login is not available right now. Please try again later.', 500);
   }
 
-  const redirectUri = getDiscordRedirectUri(req);
+  // For Embedded App SDK authorize() flow, Discord expects redirect_uri to be 'http://localhost'
+  // When falling back to standard web OAuth, use our hosted callback URL.
+  const embedded = String(req.query.embedded || '').toLowerCase() === '1' || String(req.query.embedded || '').toLowerCase() === 'true';
+  const redirectUri = embedded ? 'http://localhost' : getDiscordRedirectUri(req);
 
   try {
     const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {

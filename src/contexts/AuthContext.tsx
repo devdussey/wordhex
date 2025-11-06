@@ -167,7 +167,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // The authorize() method returns the authorization code
           if (response?.code) {
             // Redirect to callback endpoint with the code
-            const callbackUrl = `${window.location.origin}/api/auth/discord/callback?code=${response.code}`;
+            // Include embedded=1 so server uses the Embedded SDK redirect_uri (http://localhost)
+            const callbackUrl = `${window.location.origin}/api/auth/discord/callback?code=${response.code}&embedded=1`;
             window.location.href = callbackUrl;
           } else {
             setError('Discord authorization did not return an authorization code');
