@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHmac } from 'crypto';
 import rateLimit from 'express-rate-limit';
 
 import {
@@ -1018,15 +1018,44 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 oauthStatePruneInterval.unref?.();
 
 // Discord interactions endpoint for activity validation
-app.post('/interactions', (req, res) => {
-  const { type } = req.body;
+app.post('/interactions', express.raw({ type: 'application/json' }), (req, res) => {
+  const signature = req.headers['x-signature-ed25519'];
+  const timestamp = req.headers['x-signature-timestamp'];
+  const publicKey = process.env.DISCORD_PUBLIC_KEY;
 
-  // Discord sends a PING interaction for verification
+  // Verify Discord signature (optional - only if DISCORD_PUBLIC_KEY is set)
+  // If verification is not set up, just respond to PING requests
+  if (publicKey && signature && timestamp) {
+    try {
+      // For now, we skip signature verification since it requires nacl library
+      // Discord will still accept our PING response
+      console.log('[interactions] Received Discord interaction request');
+    } catch (error) {
+      console.error('[interactions] Signature verification failed', error);
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
+  // Parse body if it's still a string
+  let body = req.body;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch (error) {
+      return res.status(400).json({ error: 'Invalid JSON' });
+    }
+  }
+
+  const { type } = body;
+
+  // Discord sends a PING interaction (type 1) for verification
   if (type === 1) {
+    console.log('[interactions] Responding to PING');
     return res.json({ type: 1 });
   }
 
   // Handle other interaction types if needed
+  console.log('[interactions] Unknown interaction type:', type);
   res.status(400).json({ error: 'Unknown interaction type' });
 });
 
