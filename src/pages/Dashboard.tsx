@@ -1,3 +1,4 @@
+import React from "react";
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
@@ -20,6 +21,19 @@ type RecentMatch = {
 type DashboardProps = {
   session: Session;
 };
+
+export default function Dashboard() {
+  return (
+    <>
+      <nav className="bg-purple-950/80 backdrop-blur border-b border-purple-900/60 text-purple-100">
+        {/* your nav content */}
+      </nav>
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-fuchsia-950 pb-16">
+        {/* your dashboard sections */}
+      </main>
+    </>
+  );
+}
 
 export function Dashboard({ session }: DashboardProps) {
   const [stats, setStats] = useState<PlayerStats | null>(null);
