@@ -3,8 +3,13 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+console.log("✅ main.tsx loaded");
+
+const root = document.getElementById("root");
+console.log("root element:", root);
+
+ReactDOM.createRoot(root as HTMLElement).render(
   <React.StrictMode>
     <App />
-  </React.StrictMode>,
+  </React.StrictMode>
 );
