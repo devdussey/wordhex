@@ -166,10 +166,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // The authorize() method returns the authorization code
           if (response?.code) {
-            // Redirect to callback endpoint with the code
-            // Include embedded=1 so server uses the Embedded SDK redirect_uri (http://localhost)
-            const callbackUrl = `${window.location.origin}/api/auth/discord/callback?code=${response.code}&embedded=1`;
-            window.location.href = callbackUrl;
+            // Exchange the embedded code server-side via API (no navigation)
+            try {
+              const result = await api.auth.exchangeDiscordEmbedded(response.code);
+              completeLogin(result.user as UserProfile);
+              setError(null);
+              setLoading(false);
+              return;
+            } catch (exErr) {
+              console.error('[auth] Embedded code exchange failed', exErr);
+              setError('We could not complete Discord login. Please try again.');
+              setLoading(false);
+              return;
+            }
           } else {
             setError('Discord authorization did not return an authorization code');
             setLoading(false);

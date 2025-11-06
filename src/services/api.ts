@@ -280,6 +280,13 @@ export const api = {
       }
       return response.url;
     },
+    async exchangeDiscordEmbedded(code: string) {
+      const result = await request<AuthResponse>('/auth/discord/exchange', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      });
+      return storeAuthCredentials(result);
+    },
   },
 
   lobby: {

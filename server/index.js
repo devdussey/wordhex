@@ -682,6 +682,69 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// Embedded OAuth2 code exchange (no browser redirect)
+// Accepts { code } and returns { token, user }
+app.post('/api/auth/discord/exchange', async (req, res) => {
+  try {
+    const code = req.body?.code;
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: 'code is required' });
+    }
+
+    const clientId = getDiscordClientId();
+    const clientSecret = getDiscordClientSecret();
+    if (!clientId || !clientSecret) {
+      return res.status(500).json({ error: 'Discord credentials not configured' });
+    }
+
+    const redirectUri = 'http://localhost';
+    const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+      }).toString(),
+    });
+
+    if (!tokenResponse.ok) {
+      const body = await tokenResponse.text();
+      console.error('[OAuth] Embedded exchange failed', tokenResponse.status, body);
+      return res.status(400).json({ error: 'Failed to exchange code' });
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    const userResponse = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!userResponse.ok) {
+      const body = await userResponse.text();
+      console.error('[OAuth] Embedded profile fetch failed', userResponse.status, body);
+      return res.status(400).json({ error: 'Failed to fetch Discord profile' });
+    }
+
+    const discordUser = await userResponse.json();
+    const preferredUsername =
+      discordUser.global_name || discordUser.username || `Discord User ${discordUser.id}`;
+
+    const user = await upsertUser({
+      discordId: discordUser.id,
+      username: preferredUsername,
+    });
+
+    return res.json({ token: user.id, user });
+  } catch (error) {
+    console.error('auth/discord/exchange error', error);
+    return res.status(500).json({ error: 'Exchange failed' });
+  }
+});
+
 app.post('/api/auth/guest', async (_req, res) => {
   try {
     const user = await createGuestUser();
