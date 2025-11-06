@@ -6,6 +6,7 @@ export enum ErrorType {
   DATABASE = 'DATABASE',
   DISCORD = 'DISCORD',
   TIMEOUT = 'TIMEOUT',
+  GAMEPLAY = 'GAMEPLAY',
   UNKNOWN = 'UNKNOWN'
 }
 

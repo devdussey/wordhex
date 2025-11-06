@@ -43,7 +43,7 @@ export function MatchHistory({ onBack }: MatchHistoryProps) {
         return {
           matchId:
             match.id ??
-            match.matchId ??
+            (match as any).matchId ??
             `match-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
           date: new Date(completedAt ?? Date.now()).toLocaleString(),
           score: me?.score ?? 0,

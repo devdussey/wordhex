@@ -155,12 +155,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
             response_type: 'code',
             state,
-            prompt: 'consent', // Show consent screen
+            prompt: 'none' as const, // Don't show consent screen for embedded app
             scope: ['identify', 'guilds'],
-            // Required by Embedded App SDK to indicate a user-install context
-            // Use 0 with guild_id/permissions for guild installs.
-            integration_type: 1,
-          });
+          } as any);
 
           console.log('[auth] Discord authorization response:', response);
 

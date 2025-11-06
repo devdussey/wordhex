@@ -251,7 +251,7 @@ export function Game({ onBack, serverId = 'dev-server-123' }: GameProps) {
           timeLeft={gameState.timeLeft}
           gemsCollected={gameState.gemsCollected}
           wordsFound={gameState.wordsFound.length}
-          serverRecord={serverRecord}
+          serverRecord={serverRecord > 0 ? { score: serverRecord, player_name: 'Top Player' } : null}
         />
 
         <div className="mt-8 grid lg:grid-cols-2 gap-8">

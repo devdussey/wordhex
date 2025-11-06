@@ -213,8 +213,7 @@ async function initializeApp() {
           prompt: 'none',
           scope: ['identify', 'guilds'],
           // Required by Embedded App SDK: 1 = user-install context
-          integration_type: 1,
-        });
+        } as any);
         debug('Discord authorization successful');
         trackEvent('discord_auth_success');
       } catch (authError) {

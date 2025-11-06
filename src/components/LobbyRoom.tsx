@@ -52,8 +52,11 @@ export function LobbyRoom({
           if (!stillInLobby) {
             showError({
               message: 'You have been removed from the lobby by the host.',
+              userMessage: 'You have been removed from the lobby by the host.',
               severity: ErrorSeverity.MEDIUM,
               type: ErrorType.GAMEPLAY,
+              timestamp: Date.now(),
+              retryable: false,
             });
             onLeave();
             return;
@@ -64,8 +67,11 @@ export function LobbyRoom({
       if (payload.type === 'lobby:deleted' && payload.lobbyId === lobbyId) {
         showError({
           message: 'Lobby closed by host',
+          userMessage: 'Lobby closed by host',
           severity: ErrorSeverity.MEDIUM,
           type: ErrorType.GAMEPLAY,
+          timestamp: Date.now(),
+          retryable: false,
         });
         onLeave();
       }
@@ -174,8 +180,11 @@ export function LobbyRoom({
       logError(error, ErrorType.NETWORK, ErrorSeverity.MEDIUM, 'Failed to remove player from lobby');
       showError({
         message: error instanceof Error ? error.message : 'Failed to remove player from lobby',
+        userMessage: 'Failed to remove player from lobby',
         severity: ErrorSeverity.MEDIUM,
         type: ErrorType.NETWORK,
+        timestamp: Date.now(),
+        retryable: true,
       });
     } finally {
       setRemovingPlayerId(null);

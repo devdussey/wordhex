@@ -18,7 +18,6 @@ import type {
   MatchSummary,
   MatchPlayerSummary,
   LobbySummary,
-  MatchTurnSummary,
   RealtimeMessage,
   PlayerAction,
 } from '../types/api';
@@ -299,7 +298,7 @@ export function TurnBasedGame({
         }
         await saveMatchResults({
           matchId: match?.id,
-          lobbyId: match?.lobbyId ?? null,
+          lobbyId: match?.lobbyId ?? undefined,
           players: players.map((p) => ({
             id: p.id,
             username: p.username,
@@ -307,7 +306,7 @@ export function TurnBasedGame({
             roundsPlayed: p.roundsPlayed,
           })),
           gridData: gameState.grid,
-          wordsFound: gameState.wordsFound,
+          wordsFound: gameState.wordsFound.map((w) => w.word),
         });
       } catch (error) {
         console.error('Failed to finalize game:', error);
@@ -391,8 +390,11 @@ export function TurnBasedGame({
       if (!stillInMatch) {
         showError({
           message: 'You have been removed from the match by the host.',
+          userMessage: 'You have been removed from the match by the host.',
           severity: ErrorSeverity.MEDIUM,
           type: ErrorType.GAMEPLAY,
+          timestamp: Date.now(),
+          retryable: false,
         });
         onBack();
         return;
@@ -424,7 +426,7 @@ export function TurnBasedGame({
         return {
           ...prev,
           grid: (updated.gridData as Tile[][]) ?? prev.grid,
-          wordsFound: (updated.wordsFound as GameState['wordsFound']) ?? prev.wordsFound,
+          wordsFound: (updated.wordsFound as unknown as GameState['wordsFound']) ?? prev.wordsFound,
           score: me?.score ?? prev.score,
           gameOver: updated.status === 'completed' ? true : prev.gameOver,
           selectedTiles: [],
@@ -476,7 +478,7 @@ export function TurnBasedGame({
             return {
               ...prev,
               grid: (updatedMatch.gridData as Tile[][]) ?? prev.grid,
-              wordsFound: (updatedMatch.wordsFound as GameState['wordsFound']) ?? prev.wordsFound,
+              wordsFound: (updatedMatch.wordsFound as unknown as GameState['wordsFound']) ?? prev.wordsFound,
               score: me?.score ?? prev.score,
               selectedTiles: [],
               currentWord: '',
@@ -487,8 +489,11 @@ export function TurnBasedGame({
         logError(error, ErrorType.NETWORK, ErrorSeverity.MEDIUM, 'Failed to remove player from match');
         showError({
           message: error instanceof Error ? error.message : 'Failed to remove player from match',
+          userMessage: 'Failed to remove player from match',
           severity: ErrorSeverity.MEDIUM,
           type: ErrorType.NETWORK,
+          timestamp: Date.now(),
+          retryable: true,
         });
       } finally {
         setRemovingPlayerId(null);
@@ -665,7 +670,7 @@ export function TurnBasedGame({
             scoreDelta: valid ? scoreDelta : 0,
             gems: gemCount,
             completedAt: new Date().toISOString(),
-          } as MatchTurnSummary,
+          } as unknown as Record<string, unknown>,
         };
         console.log('[API] Sending match progress update:', {
           matchId: match.id,
