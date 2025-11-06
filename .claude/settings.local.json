@@ -28,7 +28,10 @@
       "WebFetch(domain:discord.com)",
       "Bash(find:*)",
       "Bash(npm run build:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(npm install:*)",
+      "Bash(timeout 5 npm run server)",
+      "WebFetch(domain:supabase.com)"
     ],
     "deny": [],
     "ask": []

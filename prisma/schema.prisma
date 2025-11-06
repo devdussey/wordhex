@@ -8,14 +8,16 @@ datasource db {
 }
 
 model User {
-  id        String      @id
-  discordId String?     @unique
-  username  String
-  coins     Int          @default(500)
-  gems      Int          @default(25)
-  cosmetics Json
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id           String      @id
+  discordId    String?     @unique
+  email        String?     @unique
+  passwordHash String?
+  username     String
+  coins        Int          @default(500)
+  gems         Int          @default(25)
+  cosmetics    Json
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   stats     UserStats?
   lobbies   Lobby[]     @relation("LobbyHost")
@@ -24,6 +26,10 @@ model User {
   matchPlayers MatchPlayer[]
   serverRecords ServerRecord[]
   matchmakingEntries MatchmakingEntry[]
+
+  @@index([discordId])
+  @@index([email])
+  @@index([createdAt])
 }
 
 model UserStats {
@@ -67,6 +73,7 @@ model LobbyPlayer {
   user  User  @relation(fields: [userId], references: [id])
 
   @@unique([lobbyId, userId])
+  @@index([userId])
 }
 
 model Match {
@@ -100,6 +107,7 @@ model MatchPlayer {
   user  User  @relation(fields: [userId], references: [id])
 
   @@unique([matchId, userId])
+  @@index([userId])
 }
 
 model Session {

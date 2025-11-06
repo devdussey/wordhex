@@ -1,11 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { WebSocketServer } from 'ws';
-import { createServer } from 'http';
 import { randomUUID, createHmac } from 'crypto';
 import rateLimit from 'express-rate-limit';
 import bcryptjs from 'bcryptjs';
+
+// Note: WebSocket not supported on Vercel Serverless Functions
+// Use Supabase Realtime instead (already configured in environment)
 
 import {
   upsertUser,
@@ -69,8 +70,6 @@ function resolveTrustProxy(value) {
 }
 
 app.set('trust proxy', resolveTrustProxy(process.env.TRUST_PROXY));
-const httpServer = createServer(app);
-const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
 const defaultAllowedOrigins = [
   'http://localhost:5173',
@@ -286,225 +285,9 @@ const authLimiter = rateLimit({
 app.use('/api/', limiter);
 app.use('/api/auth/', authLimiter);
 
-const CHANNEL_MATCHMAKING = 'matchmaking:global';
-const LOBBY_RECONNECT_GRACE_MS = 2 * 60 * 1000;
-
-const channelSubscriptions = new Map(); // channel -> Set<ws>
-const userConnections = new Map(); // userId -> { sockets: Set<ws>, timeout: ReturnType<typeof setTimeout> | null }
-
-function trackUserConnection(ws) {
-  if (!ws.userId) {
-    return;
-  }
-
-  let entry = userConnections.get(ws.userId);
-  if (!entry) {
-    entry = { sockets: new Set(), timeout: null };
-    userConnections.set(ws.userId, entry);
-  }
-
-  entry.sockets.add(ws);
-  if (entry.timeout) {
-    clearTimeout(entry.timeout);
-    entry.timeout = null;
-  }
-}
-
-function scheduleLobbyCleanup(userId) {
-  const entry = userConnections.get(userId);
-  if (!entry) {
-    return;
-  }
-  if (entry.sockets.size > 0 || entry.timeout) {
-    return;
-  }
-
-  entry.timeout = setTimeout(async () => {
-    try {
-      const currentEntry = userConnections.get(userId);
-      if (currentEntry && currentEntry.sockets.size > 0) {
-        return;
-      }
-
-      const memberships = await prisma.lobbyPlayer.findMany({
-        where: { userId },
-        select: { lobbyId: true },
-      });
-
-      for (const membership of memberships) {
-        const { lobbyId } = membership;
-        try {
-          await leaveLobby({ lobbyId, userId });
-        } catch (error) {
-          console.error('Failed to auto-remove disconnected player from lobby', lobbyId, userId, error);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to clean up lobbies for disconnected user', userId, error);
-    } finally {
-      const latestEntry = userConnections.get(userId);
-      if (!latestEntry) {
-        return;
-      }
-      latestEntry.timeout = null;
-      if (latestEntry.sockets.size === 0) {
-        userConnections.delete(userId);
-      }
-    }
-  }, LOBBY_RECONNECT_GRACE_MS);
-}
-
-function releaseUserConnection(ws) {
-  if (!ws.userId) {
-    return;
-  }
-
-  const entry = userConnections.get(ws.userId);
-  if (!entry) {
-    return;
-  }
-
-  entry.sockets.delete(ws);
-  if (entry.sockets.size === 0) {
-    scheduleLobbyCleanup(ws.userId);
-  }
-}
-
-function subscriptionKey(channel) {
-  return channel.toString();
-}
-
-function subscribe(ws, channel) {
-  const key = subscriptionKey(channel);
-  if (!channelSubscriptions.has(key)) {
-    channelSubscriptions.set(key, new Set());
-  }
-  channelSubscriptions.get(key).add(ws);
-  if (!ws.subscriptions) {
-    ws.subscriptions = new Set();
-  }
-  ws.subscriptions.add(key);
-}
-
-function unsubscribe(ws, channel) {
-  const key = subscriptionKey(channel);
-  if (channelSubscriptions.has(key)) {
-    channelSubscriptions.get(key).delete(ws);
-    if (channelSubscriptions.get(key).size === 0) {
-      channelSubscriptions.delete(key);
-    }
-  }
-  if (ws.subscriptions) {
-    ws.subscriptions.delete(key);
-  }
-}
-
-function broadcast(channel, payload) {
-  if (isSupabaseRealtimeEnabled) {
-    publishSupabaseEvent(channel, payload);
-  }
-
-  const key = subscriptionKey(channel);
-  const subscribers = channelSubscriptions.get(key);
-  if (!subscribers) return;
-  const message = JSON.stringify({ channel: key, ...payload });
-  subscribers.forEach((ws) => {
-    if (ws.readyState === ws.OPEN) {
-      ws.send(message);
-    }
-  });
-}
-
-wss.on('connection', (ws) => {
-  ws.subscriptions = new Set();
-
-  ws.on('message', (raw) => {
-    try {
-      const message = JSON.parse(raw.toString());
-      if (message.type === 'identify') {
-        ws.userId = message.userId;
-        ws.username = message.username;
-        trackUserConnection(ws);
-      }
-      if (message.type === 'subscribe') {
-        subscribe(ws, message.channel);
-      }
-      if (message.type === 'unsubscribe') {
-        unsubscribe(ws, message.channel);
-      }
-      if (message.type === 'player:action') {
-        // Broadcast player action to all players in the match
-        const { matchId, action, playerId, username } = message;
-        if (matchId && action) {
-          broadcast(`match:${matchId}`, {
-            type: 'player:action',
-            playerId,
-            username,
-            action,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Failed to handle websocket message', error);
-    }
-  });
-
-  ws.on('close', () => {
-    if (ws.subscriptions) {
-      ws.subscriptions.forEach((channel) => unsubscribe(ws, channel));
-    }
-    releaseUserConnection(ws);
-  });
-});
-
-// Broadcast hooks
-onStateEvent('lobby:updated', (lobby) => {
-  if (lobby) {
-    broadcast(`lobby:${lobby.id}`, { type: 'lobby:update', lobby });
-    if (!lobby.isPrivate) {
-      broadcast(`server:${lobby.serverId}:lobbies`, { type: 'lobby:update', lobby });
-    }
-  }
-});
-
-onStateEvent('lobby:deleted', ({ lobbyId, serverId }) => {
-  broadcast(`lobby:${lobbyId}`, { type: 'lobby:deleted', lobbyId });
-  if (serverId) {
-    broadcast(`server:${serverId}:lobbies`, { type: 'lobby:deleted', lobbyId });
-  }
-});
-
-onStateEvent('matchmaking:updated', (snapshot) => {
-  broadcast(CHANNEL_MATCHMAKING, { type: 'matchmaking:update', snapshot });
-});
-
-onStateEvent('match:started', (match) => {
-  if (match?.lobbyId) {
-    broadcast(`lobby:${match.lobbyId}`, { type: 'match:started', match });
-  }
-  broadcast(`match:${match.id}`, { type: 'match:update', match });
-});
-
-onStateEvent('match:updated', (match) => {
-  if (match?.lobbyId) {
-    broadcast(`lobby:${match.lobbyId}`, { type: 'match:update', match });
-  }
-  broadcast(`match:${match.id}`, { type: 'match:update', match });
-});
-
-onStateEvent('match:completed', (match) => {
-  if (match?.lobbyId) {
-    broadcast(`lobby:${match.lobbyId}`, { type: 'match:completed', match });
-  }
-});
-
-onStateEvent('session:updated', (session) => {
-  broadcast(`sessions:${session.serverId}`, { type: 'sessions:update', session });
-});
-
-onStateEvent('server-record:updated', (record) => {
-  broadcast(`server-record:${record.serverId}`, { type: 'server-record:update', record });
-});
+// WebSocket and real-time updates are handled by Supabase Realtime
+// The backend will use publishSupabaseEvent() to broadcast changes
+// No local WebSocket server needed on Vercel
 
 // Routes
 app.get('/api/auth/discord/start', (req, res) => {
@@ -1200,109 +983,6 @@ app.post('/api/logs', (req, res) => {
 // Clean up expired OAuth states every 5 minutes
 const oauthStatePruneInterval = setInterval(pruneOauthStates, 5 * 60 * 1000);
 
-const PORT = Number(process.env.PORT || 3001);
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running at http://0.0.0.0:${PORT}`);
-  console.log(`WebSocket listening on ws://0.0.0.0:${PORT}/ws`);
-});
-
-oauthStatePruneInterval.unref?.();
-
-// Discord interactions endpoint for activity validation
-app.post('/interactions', express.raw({ type: 'application/json' }), (req, res) => {
-  const signature = req.headers['x-signature-ed25519'];
-  const timestamp = req.headers['x-signature-timestamp'];
-  const publicKey = process.env.DISCORD_PUBLIC_KEY;
-
-  // Verify Discord signature (optional - only if DISCORD_PUBLIC_KEY is set)
-  // If verification is not set up, just respond to PING requests
-  if (publicKey && signature && timestamp) {
-    try {
-      // For now, we skip signature verification since it requires nacl library
-      // Discord will still accept our PING response
-      console.log('[interactions] Received Discord interaction request');
-    } catch (error) {
-      console.error('[interactions] Signature verification failed', error);
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-  }
-
-  // Parse body if it's still a string
-  let body = req.body;
-  if (typeof body === 'string') {
-    try {
-      body = JSON.parse(body);
-    } catch (error) {
-      return res.status(400).json({ error: 'Invalid JSON' });
-    }
-  }
-
-  const { type } = body;
-
-  // Discord sends a PING interaction (type 1) for verification
-  if (type === 1) {
-    console.log('[interactions] Responding to PING');
-    return res.json({ type: 1 });
-  }
-
-  // Handle other interaction types if needed
-  console.log('[interactions] Unknown interaction type:', type);
-  res.status(400).json({ error: 'Unknown interaction type' });
-});
-
-let shuttingDown = false;
-function shutdown(signal) {
-  if (shuttingDown) {
-    return;
-  }
-
-  shuttingDown = true;
-  console.log(`Received ${signal}. Shutting down gracefully...`);
-
-  clearInterval(oauthStatePruneInterval);
-
-  shutdownSupabaseRealtime().catch((error) => {
-    console.error('Error shutting down Supabase realtime:', error);
-  });
-
-  const forceExitTimeout = setTimeout(() => {
-    console.error('Forcing shutdown after graceful timeout.');
-    process.exit(1);
-  }, 10_000);
-  forceExitTimeout.unref?.();
-
-  wss.clients.forEach((client) => {
-    try {
-      client.terminate();
-    } catch (error) {
-      console.error('Failed to terminate WebSocket client during shutdown:', error);
-    }
-  });
-
-  wss.close((error) => {
-    if (error) {
-      console.error('Error closing WebSocket server during shutdown:', error);
-    }
-  });
-
-  prisma
-    .$disconnect()
-    .catch((error) => {
-      console.error('Error disconnecting Prisma during shutdown:', error);
-    })
-    .finally(() => {
-      httpServer.close((error) => {
-        if (error) {
-          console.error('Error closing HTTP server during shutdown:', error);
-          process.exit(1);
-          return;
-        }
-
-        console.log('Shutdown complete.');
-        process.exit(0);
-      });
-    });
-}
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+// Export Express app for Vercel Serverless Functions
+// Vercel will handle the HTTP server and routing
+export default app;
