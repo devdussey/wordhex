@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 
-export function Login() {
+export function DiscordLogin() {
   const {
     user,
     loading,

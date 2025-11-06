@@ -6,8 +6,9 @@ import { Statistics } from './components/Statistics';
 import { Options } from './components/Options';
 import { LobbySelection } from './components/LobbySelection';
 import { LobbyRoom } from './components/LobbyRoom';
-import { Login } from './components/Login';
+import { DiscordLogin } from './components/DiscordLogin';
 import { Leaderboard } from './components/Leaderboard';
+import { PracticeArena } from './pages/Game';
 import { useAuth } from './contexts/AuthContext';
 import { useError } from './contexts/ErrorContext';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
@@ -23,7 +24,8 @@ type Page =
   | 'play'
   | 'statistics'
   | 'leaderboard'
-  | 'options';
+  | 'options'
+  | 'practice';
 
 function App() {
   const { user, getUsername, loading } = useAuth();
@@ -80,7 +82,7 @@ function App() {
   }
 
   if (!user) {
-    return <Login />;
+    return <DiscordLogin />;
   }
   const playerName = getUsername();
   const playerId = user.id;
@@ -158,7 +160,21 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'menu':
-        return <MainMenu onNavigate={(page) => page === 'play' ? handlePlayClick() : setCurrentPage(page)} />;
+        return (
+          <MainMenu
+            onNavigate={(page) => {
+              if (page === 'play') {
+                handlePlayClick();
+                return;
+              }
+              if (page === 'practice') {
+                setCurrentPage('practice');
+                return;
+              }
+              setCurrentPage(page);
+            }}
+          />
+        );
       case 'lobby-selection':
         return (
           <LobbySelection
@@ -207,8 +223,24 @@ function App() {
         return <Leaderboard onBack={() => setCurrentPage('menu')} />;
       case 'options':
         return <Options onBack={() => setCurrentPage('menu')} />;
+      case 'practice':
+        return <PracticeArena onExit={() => setCurrentPage('menu')} />;
       default:
-        return <MainMenu onNavigate={(page) => page === 'play' ? handlePlayClick() : setCurrentPage(page)} />;
+        return (
+          <MainMenu
+            onNavigate={(page) => {
+              if (page === 'play') {
+                handlePlayClick();
+                return;
+              }
+              if (page === 'practice') {
+                setCurrentPage('practice');
+                return;
+              }
+              setCurrentPage(page);
+            }}
+          />
+        );
     }
   };
 

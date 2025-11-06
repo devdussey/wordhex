@@ -2,7 +2,7 @@ import { useMemo, useState, type ComponentType } from "react";
 import { Play, BarChart3, Settings, ShoppingBag, Trophy, LogOut, UserCircle2, Sparkles, X, Check } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
-type MainMenuDestination = "play" | "statistics" | "leaderboard" | "options";
+type MainMenuDestination = "play" | "statistics" | "leaderboard" | "options" | "practice";
 
 interface MainMenuProps {
   onNavigate: (page: MainMenuDestination) => void;
@@ -58,6 +58,15 @@ export function MainMenu({ onNavigate }: MainMenuProps) {
       hoverGradient: "hover:from-green-700 hover:to-emerald-700",
       type: "navigate",
       target: "play",
+    },
+    {
+      id: "practice",
+      label: "Solo Practice",
+      icon: Sparkles,
+      gradient: "from-purple-500 to-pink-500",
+      hoverGradient: "hover:from-purple-600 hover:to-pink-600",
+      type: "navigate",
+      target: "practice",
     },
     {
       id: "leaderboard",
