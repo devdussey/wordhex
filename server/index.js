@@ -723,13 +723,20 @@ app.get('/api/matchmaking/snapshot', async (_req, res) => {
 
 // Simple health and diagnostics endpoint
 app.get('/api/health', async (_req, res) => {
+  let dbOk = false;
   try {
-    // Basic DB check: attempt a lightweight query through Prisma
-    const dbOk = !!(await prisma.user.count({ take: 1 }).catch(() => null)) || true;
-    res.json({ ok: true, uptime: process.uptime(), dbOk });
-  } catch {
-    res.status(200).json({ ok: true, uptime: process.uptime(), dbOk: false });
+    // Basic DB check: raw SELECT 1
+    await prisma.$queryRaw`SELECT 1`;
+    dbOk = true;
+  } catch (_) {
+    dbOk = false;
   }
+  res.json({ ok: true, uptime: process.uptime(), dbOk });
+});
+
+// Also respond on /api and /api/
+app.get('/api', (_req, res) => {
+  res.json({ ok: true, message: 'WordHex API', endpoints: ['/api/health', '/api/leaderboard', '/api/sessions/active'] });
 });
 
 app.post('/api/lobby/create', async (req, res) => {
