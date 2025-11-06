@@ -4,6 +4,8 @@ import dotenv from 'dotenv';
 import { randomUUID, createHmac } from 'crypto';
 import rateLimit from 'express-rate-limit';
 import bcryptjs from 'bcryptjs';
+import webhookService from '../server/webhookService.js';
+import { logBackendError, logDatabaseError, logAuthError } from '../server/errorLogger.js';
 
 // Note: WebSocket not supported on Vercel Serverless Functions
 // Use Supabase Realtime instead (already configured in environment)
@@ -470,7 +472,11 @@ app.post('/api/auth/login', async (req, res) => {
     const user = await upsertUser({ discordId, username });
     res.json({ token: user.id, user });
   } catch (error) {
-    console.error('auth/login error', error);
+    logAuthError(error, {
+      endpoint: '/api/auth/login',
+      discordId: req.body?.discordId,
+      hasUsername: !!req.body?.username
+    });
     res.status(500).json({ error: 'Failed to login' });
   }
 });
@@ -974,14 +980,126 @@ app.post('/api/server-records', async (req, res) => {
   }
 });
 
-app.post('/api/logs', (req, res) => {
+app.post('/api/logs', async (req, res) => {
   const payload = req.body ?? {};
   console.warn('[ClientLog]', payload);
+
+  // Process and save errors
+  try {
+    let errors = [];
+
+    // Handle both single error and array of errors
+    if (Array.isArray(payload)) {
+      errors = payload;
+    } else if (Array.isArray(payload.errors)) {
+      errors = payload.errors;
+    } else if (payload.type || payload.message) {
+      // Single error object
+      errors = [payload];
+    }
+
+    // Add source as FRONTEND for all client logs
+    errors = errors.map(err => ({
+      ...err,
+      source: 'FRONTEND'
+    }));
+
+    if (errors.length > 0) {
+      // Save to database asynchronously
+      errors.forEach(async (error) => {
+        try {
+          await db.errorLog.create({
+            data: {
+              type: error.type || 'UNKNOWN',
+              severity: error.severity || 'MEDIUM',
+              message: error.message || 'Unknown error',
+              userMessage: error.userMessage,
+              source: 'FRONTEND',
+              context: error.context || {},
+              stack: error.stack,
+              userId: error.userId,
+              timestamp: error.timestamp ? new Date(error.timestamp) : new Date(),
+              webhookSent: false
+            }
+          });
+        } catch (dbError) {
+          console.error('Failed to save error to database:', dbError);
+        }
+      });
+
+      // Send to webhooks asynchronously (don't wait for result)
+      webhookService.logErrors(errors).catch(err => {
+        console.error('Failed to send errors to webhooks:', err);
+      });
+    }
+  } catch (error) {
+    console.error('Error processing webhook logs:', error);
+  }
+
   res.json({ ok: true });
+});
+
+// Test webhook configuration
+app.post('/api/webhooks/test', async (req, res) => {
+  try {
+    console.log('Testing webhook configuration...');
+    const result = await webhookService.testWebhooks();
+
+    res.json({
+      success: true,
+      message: 'Webhook test completed',
+      result: {
+        sent: result.sent,
+        failed: result.failed,
+        details: result.details
+      }
+    });
+  } catch (error) {
+    console.error('Webhook test failed:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to test webhooks',
+      message: error.message
+    });
+  }
 });
 
 // Clean up expired OAuth states every 5 minutes
 const oauthStatePruneInterval = setInterval(pruneOauthStates, 5 * 60 * 1000);
+
+// Global error handlers for uncaught exceptions and unhandled rejections
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  logBackendError(error, {
+    type: 'UNCAUGHT_EXCEPTION',
+    severity: 'CRITICAL',
+    userMessage: 'A critical server error occurred',
+    context: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      environment: 'vercel-serverless'
+    }
+  });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logBackendError(reason, {
+    type: 'UNHANDLED_REJECTION',
+    severity: 'HIGH',
+    userMessage: 'An unhandled promise rejection occurred',
+    context: {
+      promise: String(promise),
+      nodeVersion: process.version,
+      platform: process.platform,
+      environment: 'vercel-serverless'
+    }
+  });
+});
+
+// Log webhook system initialization
+console.log('Error webhook system initialized');
+console.log('Webhooks configured:', webhookService.webhooks?.length || 0);
 
 // Export Express app for Vercel Serverless Functions
 // Vercel will handle the HTTP server and routing
