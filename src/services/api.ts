@@ -78,8 +78,11 @@ function shouldEnforceSameOrigin(): boolean {
     return false;
   }
 
+  // When running inside a Discord Activity host (discord.com/discordsays.com),
+  // we must call our own backend domain. Enforcing same-origin would point to
+  // the Discord host instead of our API and break OAuth/WS. Allow cross-origin.
   if (isDiscordActivityHost(hostname)) {
-    return true;
+    return false;
   }
 
   return true;
@@ -94,7 +97,13 @@ function computeApiBase(): string {
 
     try {
       const resolvedEnvUrl = new URL(envUrl, window.location.origin);
-      const enforceSameOrigin = shouldEnforceSameOrigin();
+      let enforceSameOrigin = shouldEnforceSameOrigin();
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('frame_id')) {
+          enforceSameOrigin = false;
+        }
+      } catch {}
 
       if (
         enforceSameOrigin &&
