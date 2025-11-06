@@ -132,16 +132,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (discordSdk) {
         // Use Discord SDK's authorize command for embedded activities
         try {
-          await discordSdk.commands.authorize({
+          const response = await discordSdk.commands.authorize({
             client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
             response_type: 'code',
             state: '',
             prompt: 'consent', // Show consent screen
             scope: ['identify', 'guilds'],
           });
-          // After authorization, the SDK will handle the callback
-          console.log('[auth] Discord authorization successful via SDK');
-          setLoading(false);
+
+          console.log('[auth] Discord authorization response:', response);
+
+          // The authorize() method returns the authorization code
+          if (response?.code) {
+            // Redirect to callback endpoint with the code
+            const callbackUrl = `${window.location.origin}/api/auth/discord/callback?code=${response.code}`;
+            window.location.href = callbackUrl;
+          } else {
+            setError('Discord authorization did not return an authorization code');
+            setLoading(false);
+          }
         } catch (sdkError) {
           console.error('[auth] Discord SDK authorization failed', sdkError);
           setError('Discord authorization was denied or failed');
@@ -151,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Not in Discord, try fallback OAuth
         const returnTo = window.location.href;
         const url = await api.auth.getDiscordAuthUrl(returnTo);
-        window.open(url, '_blank');
+        window.location.href = url; // Use location.href instead of window.open
         setLoading(false);
       }
     } catch (error) {
