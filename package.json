@@ -23,8 +23,9 @@
     "setup:supabase": "node scripts/setup-supabase.mjs"
   },
   "dependencies": {
-    "@discord/embedded-app-sdk": "^2.4.0",
+    "@discord/embedded-app-sdk": "github:discord/embedded-app-sdk",
     "@prisma/client": "^6.1.0",
+    "@supabase/supabase-js": "^2.43.4",
     "@vercel/analytics": "^1.5.0",
     "cors": "^2.8.5",
     "discord.js": "^14.24.1",
@@ -71,7 +72,7 @@
           },
           {
             "key": "Content-Security-Policy",
-            "value": "frame-ancestors https://*.discord.com https://*.discordapp.com https://*.discordsays.com; connect-src 'self' data: blob: https://*.discord.com https://discord.com https://*.discordapp.com https://cdn.discordapp.com https://*.discord.gg https://*.discordmedia.net https://*.discordsays.com https://wordhex-backend-production.up.railway.app wss://wordhex-backend-production.up.railway.app https://*.railway.app wss://*.railway.app wss://gateway.discord.gg https://vitals.vercel-insights.com;"
+            "value": "frame-ancestors https://*.discord.com https://*.discordapp.com https://*.discordsays.com; connect-src 'self' data: blob: https://*.discord.com https://discord.com https://*.discordapp.com https://cdn.discordapp.com https://*.discord.gg https://*.discordmedia.net https://*.discordsays.com https://wordhex-backend-production.up.railway.app wss://wordhex-backend-production.up.railway.app https://*.railway.app wss://*.railway.app https://*.supabase.co wss://*.supabase.co wss://gateway.discord.gg https://vitals.vercel-insights.com;"
           },
           {
             "key": "Cross-Origin-Opener-Policy",

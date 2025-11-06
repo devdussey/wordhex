@@ -1,3 +1,4 @@
+import { createClient, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
 import type {
   AuthResponse,
   GameSession,
@@ -35,6 +36,12 @@ export interface MatchProgressPayload {
   lastTurn?: Record<string, unknown> | null;
   gameOver?: boolean;
 }
+
+const REALTIME_PROVIDER = (import.meta.env.VITE_REALTIME_PROVIDER || 'websocket').toLowerCase();
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const USE_SUPABASE_REALTIME =
+  REALTIME_PROVIDER === 'supabase' && Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 function isLocalhost(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1';
@@ -459,9 +466,14 @@ class RealtimeClient {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private channelHandlers = new Map<string, Set<MessageHandler>>();
   private identifyPayload: { userId: string; username: string } | null = null;
+  private supabase: SupabaseClient | null = null;
+  private supabaseChannels = new Map<string, { channel: RealtimeChannel; subscriptionPromise: Promise<void> | null }>();
 
   connect(userId: string, username: string) {
     this.identifyPayload = { userId, username };
+    if (USE_SUPABASE_REALTIME) {
+      this.ensureSupabaseClient();
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.identify();
       return;
@@ -486,6 +498,9 @@ class RealtimeClient {
       }, 2000);
     };
     this.ws.onmessage = (event) => {
+      if (USE_SUPABASE_REALTIME) {
+        return;
+      }
       try {
         const payload = JSON.parse(event.data) as RealtimeMessage;
         const { channel } = payload;
@@ -511,6 +526,18 @@ class RealtimeClient {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+    if (USE_SUPABASE_REALTIME && this.supabase) {
+      this.supabaseChannels.forEach(({ channel }) => {
+        try {
+          channel.unsubscribe();
+        } catch (error) {
+          console.warn('Failed to unsubscribe Supabase channel', error);
+        } finally {
+          this.supabase?.removeChannel(channel);
+        }
+      });
+      this.supabaseChannels.clear();
+    }
   }
 
   subscribe(channel: string, handler: MessageHandler) {
@@ -518,6 +545,11 @@ class RealtimeClient {
       this.channelHandlers.set(channel, new Set());
     }
     this.channelHandlers.get(channel)!.add(handler);
+    if (USE_SUPABASE_REALTIME) {
+      this.ensureSupabaseSubscription(channel).catch((error) => {
+        console.error('[realtime] Failed to subscribe to Supabase channel', channel, error);
+      });
+    }
     this.send({ type: 'subscribe', channel });
   }
 
@@ -532,6 +564,11 @@ class RealtimeClient {
     if (handlers.size === 0) {
       this.channelHandlers.delete(channel);
       this.send({ type: 'unsubscribe', channel });
+      if (USE_SUPABASE_REALTIME) {
+        this.teardownSupabaseChannel(channel).catch((error) => {
+          console.warn('[realtime] Failed to teardown Supabase channel', channel, error);
+        });
+      }
     }
   }
 
@@ -545,6 +582,107 @@ class RealtimeClient {
     this.channelHandlers.forEach((_handlers, channel) => {
       this.send({ type: 'subscribe', channel });
     });
+  }
+
+  private ensureSupabaseClient(): SupabaseClient | null {
+    if (!USE_SUPABASE_REALTIME) {
+      return null;
+    }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.warn('[realtime] Supabase configuration missing');
+      return null;
+    }
+    if (!this.supabase) {
+      this.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+        realtime: {
+          params: {
+            eventsPerSecond: 15,
+          },
+        },
+      });
+    }
+    return this.supabase;
+  }
+
+  private async ensureSupabaseSubscription(channelName: string): Promise<void> {
+    const client = this.ensureSupabaseClient();
+    if (!client) {
+      return;
+    }
+
+    let entry = this.supabaseChannels.get(channelName);
+    if (!entry) {
+      const supabaseChannel = client.channel(channelName, {
+        config: { broadcast: { self: false } },
+      });
+
+      const subscriptionPromise = new Promise<void>((resolve, reject) => {
+        supabaseChannel.on('broadcast', { event: 'message' }, (payload) => {
+          this.handleSupabaseMessage(channelName, payload);
+        });
+
+        supabaseChannel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            resolve();
+          } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR' || status === 'CLOSED') {
+            reject(new Error(`Supabase channel ${channelName} status ${status}`));
+          }
+        });
+      }).catch((error) => {
+        this.supabaseChannels.delete(channelName);
+        throw error;
+      });
+
+      entry = { channel: supabaseChannel, subscriptionPromise };
+      this.supabaseChannels.set(channelName, entry);
+    }
+
+    if (entry.subscriptionPromise) {
+      try {
+        await entry.subscriptionPromise;
+        entry.subscriptionPromise = null;
+      } catch (error) {
+        console.error('[realtime] Supabase subscription error', channelName, error);
+      }
+    }
+  }
+
+  private async teardownSupabaseChannel(channelName: string): Promise<void> {
+    const entry = this.supabaseChannels.get(channelName);
+    if (!entry) {
+      return;
+    }
+    this.supabaseChannels.delete(channelName);
+    try {
+      await entry.channel.unsubscribe();
+    } catch (error) {
+      console.warn('[realtime] Supabase channel unsubscribe failed', channelName, error);
+    }
+    if (this.supabase) {
+      try {
+        await this.supabase.removeChannel(entry.channel);
+      } catch (error) {
+        console.warn('[realtime] Failed to remove Supabase channel', channelName, error);
+      }
+    }
+  }
+
+  private handleSupabaseMessage(channelName: string, payload: unknown) {
+    const raw = (payload as { payload?: unknown })?.payload;
+    if (!raw) {
+      return;
+    }
+    const message = { channel: channelName, ...(raw as Record<string, unknown>) } as RealtimeMessage;
+    const handlers = this.channelHandlers.get(message.channel ?? channelName);
+    if (!handlers || handlers.size === 0) {
+      return;
+    }
+    handlers.forEach((handler) => handler(message));
   }
 
   private send(payload: Record<string, unknown>) {

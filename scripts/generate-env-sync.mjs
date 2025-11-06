@@ -44,7 +44,15 @@ function main() {
   const env = parseDotEnv(content);
 
   // Select vars to sync
-  const FRONTEND_VARS = ['VITE_DISCORD_CLIENT_ID', 'VITE_API_URL', 'VITE_WS_URL'];
+  const FRONTEND_VARS = [
+    'VITE_DISCORD_CLIENT_ID',
+    'VITE_API_URL',
+    'VITE_WS_URL',
+    'VITE_SUPABASE_URL',
+    'VITE_SUPABASE_ANON_KEY',
+    'VITE_REALTIME_PROVIDER',
+    'VITE_ALLOW_CROSS_ORIGIN_API',
+  ];
   const BACKEND_VARS = [
     'DATABASE_URL',
     'DISCORD_CLIENT_ID',
@@ -52,6 +60,8 @@ function main() {
     'ALLOWED_ORIGINS',
     'TRUST_PROXY',
     'PORT',
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
   ];
 
   const missingFrontend = FRONTEND_VARS.filter((k) => !(k in env));

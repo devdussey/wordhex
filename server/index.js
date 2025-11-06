@@ -33,6 +33,11 @@ import {
   getMatchmakingSnapshot,
   onStateEvent,
 } from './state.js';
+import {
+  publishSupabaseEvent,
+  shutdownSupabaseRealtime,
+  isSupabaseRealtimeEnabled,
+} from './supabaseRealtime.js';
 import prisma from './db.js';
 
 dotenv.config();
@@ -394,6 +399,10 @@ function unsubscribe(ws, channel) {
 }
 
 function broadcast(channel, payload) {
+  if (isSupabaseRealtimeEnabled) {
+    publishSupabaseEvent(channel, payload);
+  }
+
   const key = subscriptionKey(channel);
   const subscribers = channelSubscriptions.get(key);
   if (!subscribers) return;
@@ -1153,6 +1162,10 @@ function shutdown(signal) {
   console.log(`Received ${signal}. Shutting down gracefully...`);
 
   clearInterval(oauthStatePruneInterval);
+
+  shutdownSupabaseRealtime().catch((error) => {
+    console.error('Error shutting down Supabase realtime:', error);
+  });
 
   const forceExitTimeout = setTimeout(() => {
     console.error('Forcing shutdown after graceful timeout.');
