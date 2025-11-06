@@ -31,7 +31,8 @@
       "Bash(tree:*)",
       "Bash(npm install:*)",
       "Bash(timeout 5 npm run server)",
-      "WebFetch(domain:supabase.com)"
+      "WebFetch(domain:supabase.com)",
+      "Bash(npm run typecheck:*)"
     ],
     "deny": [],
     "ask": []

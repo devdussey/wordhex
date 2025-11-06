@@ -151,38 +151,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           })();
 
-          const response = await discordSdk.commands.authorize({
-            client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
-            response_type: 'code',
-            state,
-            prompt: 'none' as const, // Don't show consent screen for embedded app
-            scope: ['identify', 'guilds'],
-          } as any);
+          try {
+            const response = await discordSdk.commands.authorize({
+              client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
+              response_type: 'code',
+              state,
+              prompt: 'none' as const, // Don't show consent screen for embedded app
+              scope: ['identify', 'guilds'],
+            } as any);
 
-          console.log('[auth] Discord authorization response:', response);
+            console.log('[auth] Discord authorization response:', response);
 
-          // The authorize() method returns the authorization code
-          if (response?.code) {
-            // Exchange the embedded code server-side via API (no navigation)
-            try {
-              const result = await api.auth.exchangeDiscordEmbedded(response.code);
-              completeLogin(result.user as UserProfile);
-              setError(null);
+            // The authorize() method returns the authorization code
+            if (response?.code) {
+              // Exchange the embedded code server-side via API (no navigation)
+              try {
+                const result = await api.auth.exchangeDiscordEmbedded(response.code);
+                completeLogin(result.user as UserProfile);
+                setError(null);
+                setLoading(false);
+                return;
+              } catch (exErr) {
+                console.error('[auth] Embedded code exchange failed', exErr);
+                setError('We could not complete Discord login. Please try again.');
+                setLoading(false);
+                return;
+              }
+            } else {
+              setError('Discord authorization did not return an authorization code');
               setLoading(false);
-              return;
-            } catch (exErr) {
-              console.error('[auth] Embedded code exchange failed', exErr);
-              setError('We could not complete Discord login. Please try again.');
-              setLoading(false);
-              return;
             }
-          } else {
-            setError('Discord authorization did not return an authorization code');
+          } catch (sdkError) {
+            // Handle SDK errors (e.g., insecure operation on mobile)
+            console.error('[auth] Discord SDK authorization failed', sdkError);
+            const errorMsg = sdkError instanceof Error ? sdkError.message : String(sdkError);
+
+            // If it's an insecure operation error, suggest using Discord properly
+            if (errorMsg.includes('insecure')) {
+              setError('Please open WordHex directly in Discord. Make sure you\'re using the Discord app.');
+            } else {
+              setError('Discord authorization was denied or failed');
+            }
             setLoading(false);
           }
-        } catch (sdkError) {
-          console.error('[auth] Discord SDK authorization failed', sdkError);
-          setError('Discord authorization was denied or failed');
+        } catch (error) {
+          console.error('[auth] Authorization error', error);
+          setError('Discord authorization failed');
           setLoading(false);
         }
       } else {
