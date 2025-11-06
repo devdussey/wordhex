@@ -18,8 +18,8 @@ export default defineConfig({
       'Access-Control-Allow-Credentials': 'true',
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
       'Cross-Origin-Embedder-Policy': 'credentialless',
-      'Content-Security-Policy':
-        "default-src 'self'; connect-src 'self' http://localhost:3001 ws://localhost:3001 wss://localhost:3001 https://wordhex-backend-production.up.railway.app https://*.railway.app wss://*.railway.app https://discord.com https://*.discord.com https://*.discordapp.com https://*.discordsays.com https://vitals.vercel-insights.com sentry-ipc:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; frame-ancestors https://discord.com https://*.discord.com https://*.discordapp.com https://*.discordsays.com"
+      'Content-Security-Policy': 
+        "default-src 'self'; connect-src 'self' http://localhost:3001 ws://localhost:3001 wss://localhost:3001 https://*.trycloudflare.com; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline';"
     },
     cors: true,
     hmr: {
