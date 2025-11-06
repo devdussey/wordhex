@@ -13,3 +13,15 @@ ReactDOM.createRoot(root as HTMLElement).render(
     <App />
   </React.StrictMode>
 );
+
+// ✅ Register service worker AFTER rendering
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then(() => console.log("✅ WordHex service worker registered"))
+      .catch((err) =>
+        console.error("❌ Service worker registration failed:", err)
+      );
+  });
+}
