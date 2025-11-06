@@ -1229,7 +1229,7 @@ app.post('/api/logs', async (req, res) => {
       // Save to database asynchronously
       errors.forEach(async (error) => {
         try {
-          await db.errorLog.create({
+          await prisma.errorLog.create({
             data: {
               type: error.type || 'UNKNOWN',
               severity: error.severity || 'MEDIUM',
