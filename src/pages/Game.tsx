@@ -1,254 +1,159 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { AuthSession, PlayerStats } from "../types";
+import { FormEvent, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabaseClient';
 
-const LETTERS = "EEEEEEEEEEEEAAAAAAAAAIIIIIIIIONNNNNNRRRRRRTTTTTLLLLSSSSUUUUDDDDGGGGBBCCMMPPFFHHVVWWYYKJXQZ";
-const BOARD_SIZE = 4;
-const ROUND_DURATION = 90;
-const DICTIONARY = [
-  "WORD",
-  "HEX",
-  "POWER",
-  "LETTER",
-  "PUZZLE",
-  "STORM",
-  "BRAIN",
-  "CODE",
-  "STACK",
-  "MIND",
-  "REACT",
-  "STATE",
-  "HOOK",
-  "NOVA",
-  "RIDDLE",
-  "GLYPH",
-];
-
-interface GameProps {
-  session: AuthSession;
-  stats: PlayerStats;
-  onStatsChange: (next: PlayerStats) => void;
-}
-
-interface BoardCell {
+type WordRecord = {
   id: string;
-  letter: string;
-}
+  value: string;
+  hint: string | null;
+};
 
-function createBoard(): BoardCell[] {
-  return Array.from({ length: BOARD_SIZE * BOARD_SIZE }, (_, index) => ({
-    id: `${index}-${Math.random().toString(36).slice(2, 7)}`,
-    letter: LETTERS[Math.floor(Math.random() * LETTERS.length)],
-  }));
-}
+type GuessResult = {
+  guess: string;
+  correct: boolean;
+  timestamp: string;
+};
 
-function canMakeWord(board: BoardCell[], word: string): boolean {
-  const normalized = word.toUpperCase();
-  const available = board.reduce<Record<string, number>>((acc, cell) => {
-    acc[cell.letter] = (acc[cell.letter] ?? 0) + 1;
-    return acc;
-  }, {});
+type GameProps = {
+  session: Session;
+};
 
-  for (const char of normalized) {
-    if (!available[char]) {
-      return false;
+export function Game({ session }: GameProps) {
+  const [currentWord, setCurrentWord] = useState<WordRecord | null>(null);
+  const [guess, setGuess] = useState('');
+  const [history, setHistory] = useState<GuessResult[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const loadWord = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+    const { data, error } = await supabase
+      .from('words')
+      .select('id, value, hint')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.info('[Game] Could not load words table:', error.message);
+      setErrorMessage('Connect your Supabase "words" table to surface puzzle data here.');
+      setCurrentWord(null);
+    } else if (data) {
+      setCurrentWord(data as WordRecord);
+    } else {
+      setCurrentWord(null);
     }
-    available[char] -= 1;
-  }
 
-  return true;
-}
-
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60)
-    .toString()
-    .padStart(2, "0");
-  const secs = (seconds % 60).toString().padStart(2, "0");
-  return `${mins}:${secs}`;
-}
-
-export default function Game({ session, stats, onStatsChange }: GameProps) {
-  const [board, setBoard] = useState(() => createBoard());
-  const [entry, setEntry] = useState("");
-  const [foundWords, setFoundWords] = useState<string[]>([]);
-  const [score, setScore] = useState(0);
-  const [secondsRemaining, setSecondsRemaining] = useState(ROUND_DURATION);
-  const [isActive, setIsActive] = useState(true);
-  const [gameFinished, setGameFinished] = useState(false);
-  const timerRef = useRef<number | null>(null);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    if (!isActive || gameFinished) {
+    void loadWord();
+  }, []);
+
+  const handleGuess = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!guess.trim()) {
       return;
     }
-
-    timerRef.current = window.setInterval(() => {
-      setSecondsRemaining((value) => {
-        if (value <= 1) {
-          if (timerRef.current !== null) {
-            window.clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          endRound();
-          return 0;
-        }
-        return value - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (timerRef.current !== null) {
-        window.clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, gameFinished]);
-
-  const boardRows = useMemo(() => {
-    const rows: BoardCell[][] = [];
-    for (let row = 0; row < BOARD_SIZE; row += 1) {
-      rows.push(board.slice(row * BOARD_SIZE, (row + 1) * BOARD_SIZE));
-    }
-    return rows;
-  }, [board]);
-
-  function resetBoard() {
-    setBoard(createBoard());
-    setEntry("");
-    setFoundWords([]);
-    setScore(0);
-    setSecondsRemaining(ROUND_DURATION);
-    setIsActive(true);
-    setGameFinished(false);
-  }
-
-  function submitWord() {
-    const word = entry.trim().toUpperCase();
-    if (!word || word.length < 3) {
-      return;
-    }
-
-    if (!DICTIONARY.includes(word)) {
-      return;
-    }
-
-    if (!canMakeWord(board, word)) {
-      return;
-    }
-
-    if (foundWords.includes(word)) {
-      return;
-    }
-
-    setFoundWords((words) => [...words, word]);
-    setScore((value) => value + word.length * 10);
-    setEntry("");
-  }
-
-  function endRound() {
-    if (gameFinished) {
-      return;
-    }
-
-    setIsActive(false);
-    setGameFinished(true);
-
-    const updatedStats: PlayerStats = {
-      gamesPlayed: stats.gamesPlayed + 1,
-      totalScore: stats.totalScore + score,
-      bestScore: Math.max(stats.bestScore, score),
-      totalWordsFound: stats.totalWordsFound + foundWords.length,
-      recentWords: [...foundWords, ...stats.recentWords].slice(0, 10),
-      lastUpdated: new Date().toISOString(),
-    };
-
-    onStatsChange(updatedStats);
-  }
-
-  function handleFinish() {
-    if (!gameFinished) {
-      endRound();
-    }
-  }
+    const normalizedGuess = guess.trim().toLowerCase();
+    const isCorrect = currentWord ? normalizedGuess === currentWord.value.toLowerCase() : false;
+    setHistory((prev) => [
+      {
+        guess: normalizedGuess,
+        correct: isCorrect,
+        timestamp: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+    setGuess('');
+  };
 
   return (
-    <main className="page">
-      <header className="page__header">
-        <h1 className="page__title">Wordhex Arena</h1>
-        <p className="page__subtitle">
-          Assemble valid words from the letter grid before the clock runs out. Each new word adds
-          to your score.
-        </p>
-      </header>
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-fuchsia-950 pb-16">
+      <div className="mx-auto max-w-3xl px-6 py-12 text-purple-100">
+        <header className="mb-10 text-center">
+          <h1 className="text-4xl font-bold text-white">Practice Arena</h1>
+          <p className="mt-3 text-purple-300">
+            Plug in your Supabase word bank and use this lightweight solo mode to test gameplay flows before shipping them to the
+            main app.
+          </p>
+          <p className="mt-2 text-sm text-purple-400">
+            Signed in as <span className="font-semibold text-purple-200">{session.user.email ?? session.user.id}</span>
+          </p>
+        </header>
 
-      <section className="panel">
-        <div className="game__status">
-          <div className="game__timer">Time left: {formatTime(secondsRemaining)}</div>
-          <div className="game__score">Score: {score}</div>
-          <div className="game__player">Player: {"provider" in session ? session.user.username : session.user.email ?? "Guest"}</div>
-        </div>
+        {loading ? (
+          <div className="flex h-40 items-center justify-center rounded-3xl border border-purple-900/60 bg-purple-950/40">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
+            <span className="ml-4 text-purple-200">Fetching the next puzzle…</span>
+          </div>
+        ) : errorMessage ? (
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6 text-center text-amber-100">
+            {errorMessage}
+          </div>
+        ) : currentWord ? (
+          <div className="rounded-3xl border border-purple-900/60 bg-purple-950/60 p-8 shadow-lg">
+            <h2 className="text-xl font-semibold text-white">Guess the hidden word</h2>
+            {currentWord.hint && <p className="mt-2 text-sm text-purple-300">Hint: {currentWord.hint}</p>}
 
-        <div className="board">
-          {boardRows.map((row, rowIndex) => (
-            <div key={`row-${rowIndex}`} className="board__row">
-              {row.map((cell) => (
-                <div key={cell.id} className="board__cell">
-                  {cell.letter}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
+            <form onSubmit={handleGuess} className="mt-6 flex flex-col gap-4 md:flex-row">
+              <input
+                value={guess}
+                onChange={(event) => setGuess(event.target.value)}
+                placeholder="Type your guess"
+                className="w-full rounded-xl border border-purple-800/60 bg-purple-900/50 px-4 py-3 text-purple-100 focus:border-purple-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-purple-700 hover:to-pink-700"
+              >
+                Submit guess
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-purple-900/60 bg-purple-950/40 p-6 text-center text-purple-200">
+            No puzzles available yet. Add rows to your Supabase "words" table to start practicing here.
+          </div>
+        )}
 
-        <form
-          className="game__form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            submitWord();
-          }}
-        >
-          <label className="game__label">
-            Enter a word
-            <input
-              className="game__input"
-              value={entry}
-              onChange={(event) => setEntry(event.target.value)}
-              disabled={!isActive}
-              placeholder="Type at least 3 letters"
-            />
-          </label>
-          <button className="button button--primary" type="submit" disabled={!isActive}>
-            Submit
-          </button>
-          <button
-            className="button"
-            type="button"
-            onClick={handleFinish}
-            disabled={gameFinished}
-          >
-            Finish round
-          </button>
-          <button className="button" type="button" onClick={resetBoard}>
-            New letters
-          </button>
-        </form>
-
-        <section className="panel panel--nested">
-          <h2 className="panel__title">Found words</h2>
-          {foundWords.length ? (
-            <ul className="list">
-              {foundWords.map((word) => (
-                <li key={word} className="list__item">
-                  <span className="list__word">{word}</span>
-                  <span className="list__score">+{word.length * 10}</span>
+        <section className="mt-12 rounded-3xl border border-purple-900/60 bg-purple-950/40 p-8 shadow-lg">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-white">Recent guesses</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setHistory([]);
+                void loadWord();
+              }}
+              className="text-sm font-medium text-purple-300 underline underline-offset-4 hover:text-white"
+            >
+              Reset puzzle
+            </button>
+          </div>
+          {history.length === 0 ? (
+            <p className="mt-4 text-purple-300">You have not made any guesses yet. Try the puzzle above!</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {history.map((item) => (
+                <li
+                  key={item.timestamp}
+                  className={`flex items-center justify-between rounded-2xl border border-purple-900/60 bg-purple-950/60 px-4 py-3 text-sm ${
+                    item.correct ? 'text-emerald-300' : 'text-purple-200'
+                  }`}
+                >
+                  <span className="font-medium uppercase tracking-widest">{item.guess}</span>
+                  <span className={item.correct ? 'font-semibold text-emerald-300' : 'text-purple-400'}>
+                    {item.correct ? 'Correct' : 'Try again'}
+                  </span>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="panel__empty">Submit valid words to start scoring points.</p>
           )}
         </section>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

@@ -1,102 +1,47 @@
-import { useMemo, useState } from "react";
-import { Menu, X } from "lucide-react";
-import { NavLink } from "react-router-dom";
-import type { AuthSession } from "../types";
+import { NavLink } from '../lib/router';
+import type { Session } from '@supabase/supabase-js';
 
-interface NavbarProps {
-  session: AuthSession;
-  onSignOut: () => Promise<void> | void;
-}
+type NavbarProps = {
+  user: Session['user'];
+  onSignOut: () => void;
+};
 
-const links = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/leaderboard", label: "Leaderboard" },
-  { to: "/game", label: "Play" },
-];
+const linkClasses = ({ isActive }: { isActive: boolean }) =>
+  `px-4 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${
+    isActive ? 'bg-purple-600 text-white' : 'text-purple-200 hover:bg-purple-800/50 hover:text-white'
+  }`;
 
-function getDisplayName(session: AuthSession): string {
-  if ("provider" in session) {
-    return session.user.username;
-  }
-
-  const user = session.user;
-  const metadata = user.user_metadata as Record<string, unknown> | null | undefined;
-  if (metadata && typeof metadata === "object") {
-    const fullName = metadata["full_name"];
-    if (typeof fullName === "string" && fullName.trim()) {
-      return fullName;
-    }
-    const userName = metadata["user_name"];
-    if (typeof userName === "string" && userName.trim()) {
-      return userName;
-    }
-  }
-
-  return user.email ?? "Wordhex Explorer";
-}
-
-export default function Navbar({ session, onSignOut }: NavbarProps) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const displayName = useMemo(() => getDisplayName(session), [session]);
-  const avatarUrl = useMemo(() => {
-    if ("provider" in session && session.user.avatar_url) {
-      return session.user.avatar_url;
-    }
-
-    if ("provider" in session) {
-      return `https://avatar.vercel.sh/${encodeURIComponent(session.user.username)}`;
-    }
-
-    const metadata = session.user.user_metadata as Record<string, unknown> | null | undefined;
-    const avatar = metadata && typeof metadata === "object" ? metadata["avatar_url"] : undefined;
-
-    if (typeof avatar === "string" && avatar) {
-      return avatar;
-    }
-
-    return `https://avatar.vercel.sh/${encodeURIComponent(displayName)}`;
-  }, [displayName, session]);
+export function Navbar({ user, onSignOut }: NavbarProps) {
+  const displayName = user.user_metadata?.name || user.user_metadata?.full_name || user.email || user.id;
 
   return (
-    <header className="navbar">
-      <div className="navbar__inner">
-        <NavLink to="/dashboard" className="navbar__brand" onClick={() => setIsOpen(false)}>
-          Wordhex
-        </NavLink>
-
-        <button
-          className="navbar__toggle"
-          type="button"
-          aria-label="Toggle navigation"
-          onClick={() => setIsOpen((open) => !open)}
-        >
-          {isOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-
-        <nav className={`navbar__links ${isOpen ? "navbar__links--open" : ""}`}>
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              className={({ isActive }) =>
-                `navbar__link${isActive ? " navbar__link--active" : ""}`
-              }
-              onClick={() => setIsOpen(false)}
-            >
-              {link.label}
+    <nav className="bg-purple-950/80 backdrop-blur border-b border-purple-900/60 text-purple-100">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-8">
+          <span className="text-xl font-bold tracking-widest text-white">WORDHEX</span>
+          <div className="flex items-center gap-2">
+            <NavLink to="/" className={linkClasses} end>
+              Dashboard
             </NavLink>
-          ))}
-        </nav>
-
-        <div className="navbar__profile">
-          <img className="navbar__avatar" src={avatarUrl} alt="Profile" />
-          <span className="navbar__name">{displayName}</span>
-          <button className="navbar__signout" type="button" onClick={() => onSignOut()}>
+            <NavLink to="/leaderboard" className={linkClasses}>
+              Leaderboard
+            </NavLink>
+            <NavLink to="/game" className={linkClasses}>
+              Game
+            </NavLink>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-purple-200">{displayName}</span>
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="rounded-md border border-purple-700 px-3 py-2 text-sm font-medium text-purple-200 transition hover:bg-purple-800 hover:text-white"
+          >
             Sign out
           </button>
         </div>
       </div>
-    </header>
+    </nav>
   );
 }

@@ -1,20 +1,14 @@
-import { createClient, type SupabaseClient, type Session } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-let client: SupabaseClient | null = null;
-
-if (supabaseUrl && supabaseAnonKey) {
-  client = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: { persistSession: true },
-  });
-} else {
-  console.warn(
-    "Supabase environment variables are missing. The app will fall back to a local demo session.",
-  );
+if (!supabaseUrl) {
+  throw new Error('Missing VITE_SUPABASE_URL environment variable');
 }
 
-export const supabase = client;
-export const isSupabaseConfigured = Boolean(client);
-export type SupabaseSession = Session;
+if (!supabaseAnonKey) {
+  throw new Error('Missing VITE_SUPABASE_ANON_KEY environment variable');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

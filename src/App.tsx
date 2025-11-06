@@ -60,190 +60,29 @@ function loadLocalSession(): LocalSession | null {
   }
 }
 
-function randomId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function createDemoSession(): LocalSession {
-  const demoNames = [
-    "Hex Adventurer",
-    "Puzzle Voyager",
-    "Letter Whisperer",
-    "Grid Master",
-  ];
-  const username = demoNames[Math.floor(Math.random() * demoNames.length)];
-  return {
-    id: randomId(),
-    created_at: new Date().toISOString(),
-    provider: "demo",
-    user: {
-      id: randomId(),
-      username,
-      email: undefined,
-      avatar_url: `https://avatar.vercel.sh/${encodeURIComponent(username)}`,
-    },
-  };
-}
-
-export default function App() {
-  const [session, setSession] = useState<AuthSession | null>(null);
-  const [stats, setStats] = useState<PlayerStats>(() => loadStats());
-  const [loadingSession, setLoadingSession] = useState(true);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    if (!supabase) {
-      const local = loadLocalSession();
-      if (isMounted) {
-        setSession(local);
-        setLoadingSession(false);
-      }
-
-      const sync = (event: StorageEvent) => {
-        if (event.key === LOCAL_SESSION_KEY) {
-          setSession(loadLocalSession());
-        }
-        if (event.key === STATS_STORAGE_KEY) {
-          setStats(loadStats());
-        }
-      };
-
-      window.addEventListener("storage", sync);
-      return () => {
-        isMounted = false;
-        window.removeEventListener("storage", sync);
-      };
-    }
-
-    supabase
-      .auth.getSession()
-      .then(({ data }) => {
-        if (!isMounted) {
-          return;
-        }
-        setSession(data.session);
-        setLoadingSession(false);
-      })
-      .catch((error) => {
-        console.error("Failed to fetch Supabase session", error);
-        setLoadingSession(false);
-      });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => {
-      isMounted = false;
-      listener.subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    window.localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(stats));
-  }, [stats]);
-
-  const handleSignIn = useCallback(async () => {
-    if (supabase) {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "discord",
-        options: {
-          redirectTo: window.location.origin,
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      if (data?.url) {
-        window.location.href = data.url;
-      }
-      return;
-    }
-
-    const demoSession = createDemoSession();
-    window.localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(demoSession));
-    setSession(demoSession);
-  }, []);
-
-  const handleSignOut = useCallback(async () => {
-    if (supabase) {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Failed to sign out", error);
-      }
-    }
-
-    window.localStorage.removeItem(LOCAL_SESSION_KEY);
-    setSession(null);
-  }, []);
-
-  const handleStatsChange = useCallback((next: PlayerStats) => {
-    setStats(next);
-  }, []);
-
-  const appShell = useMemo(
-    () => (
+  return (
+    <Router>
+      {session && <Navbar user={session.user} onSignOut={() => void handleSignOut()} />}
       <Routes>
+        <Route path="/login" element={<Login session={session} />} />
         <Route
-          path="/login"
+          path="/"
           element={
-            <Login
-              loading={loadingSession}
-              session={session}
-              supabaseReady={isSupabaseConfigured}
-              onSignIn={handleSignIn}
-            />
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute loading={loadingSession} session={session}>
-              {session ? <Dashboard session={session} stats={stats} /> : null}
-            </ProtectedRoute>
+            <ProtectedRoute session={session}>{(activeSession) => <Dashboard session={activeSession} />}</ProtectedRoute>
           }
         />
         <Route
           path="/leaderboard"
           element={
-            <ProtectedRoute loading={loadingSession} session={session}>
-              {session ? <Leaderboard session={session} stats={stats} /> : null}
-            </ProtectedRoute>
+            <ProtectedRoute session={session}>{(activeSession) => <Leaderboard session={activeSession} />}</ProtectedRoute>
           }
         />
         <Route
           path="/game"
-          element={
-            <ProtectedRoute loading={loadingSession} session={session}>
-              {session ? (
-                <Game session={session} stats={stats} onStatsChange={handleStatsChange} />
-              ) : null}
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute session={session}>{(activeSession) => <Game session={activeSession} />}</ProtectedRoute>}
         />
-        <Route
-          path="/"
-          element={<Navigate to={session ? "/dashboard" : "/login"} replace />}
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to={session ? '/' : '/login'} replace />} />
       </Routes>
-    ),
-    [handleSignIn, handleStatsChange, loadingSession, session, stats],
-  );
-
-  return (
-    <BrowserRouter>
-      {session ? <Navbar session={session} onSignOut={handleSignOut} /> : null}
-      {appShell}
-    </BrowserRouter>
+    </Router>
   );
 }

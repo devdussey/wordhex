@@ -1,37 +1,17 @@
-import type { PropsWithChildren, ReactElement } from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import type { AuthSession } from "../types";
+import type { Session } from '@supabase/supabase-js';
+import type { ReactNode } from 'react';
+import { Navigate } from '../lib/router';
 
-interface ProtectedRouteProps extends PropsWithChildren {
-  loading: boolean;
-  session: AuthSession | null;
+type ProtectedRouteProps = {
+  session: Session | null;
   redirectPath?: string;
-  fallback?: ReactElement;
-}
+  children: (session: Session) => ReactNode;
+};
 
-const defaultFallback = (
-  <div className="page-state">
-    <h2 className="page-state__title">Checking your session</h2>
-    <p className="page-state__message">Loading secure content…</p>
-  </div>
-);
-
-export default function ProtectedRoute({
-  children,
-  loading,
-  session,
-  redirectPath = "/login",
-  fallback = defaultFallback,
-}: ProtectedRouteProps) {
-  const location = useLocation();
-
-  if (loading) {
-    return fallback;
-  }
-
+export function ProtectedRoute({ session, redirectPath = '/login', children }: ProtectedRouteProps) {
   if (!session) {
-    return <Navigate to={redirectPath} replace state={{ from: location }} />;
+    return <Navigate to={redirectPath} replace />;
   }
 
-  return <>{children}</>;
+  return <>{children(session)}</>;
 }
