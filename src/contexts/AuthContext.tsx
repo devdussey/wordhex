@@ -127,14 +127,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Check if running in Discord embedded activity
       const discordSdk = window.__WORDHEX_DISCORD_SDK__;
       if (discordSdk) {
+        // Ensure the SDK is ready before attempting authorization
+        try {
+          if (typeof discordSdk.ready === 'function') {
+            await discordSdk.ready();
+          }
+        } catch (readyErr) {
+          console.error('[auth] Discord SDK not ready', readyErr);
+        }
+
         // Use Discord SDK's authorize command for embedded activities
         try {
+          // Generate a cryptographically-strong state value
+          const state = (() => {
+            try {
+              const bytes = new Uint8Array(16);
+              window.crypto.getRandomValues(bytes);
+              return Array.from(bytes)
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+            } catch {
+              return String(Date.now());
+            }
+          })();
+
           const response = await discordSdk.commands.authorize({
             client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
             response_type: 'code',
-            state: '',
+            state,
             prompt: 'consent', // Show consent screen
             scope: ['identify', 'guilds'],
+            // Required by Embedded App SDK to indicate a user-install context
+            // Use 0 with guild_id/permissions for guild installs.
+            integration_type: 1,
           });
 
           console.log('[auth] Discord authorization response:', response);

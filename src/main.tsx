@@ -193,12 +193,27 @@ async function initializeApp() {
 
       try {
         trackEvent('discord_auth_start');
+        // Generate a secure OAuth state
+        const state = (() => {
+          try {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            return Array.from(bytes)
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join('');
+          } catch {
+            return String(Date.now());
+          }
+        })();
+
         await discord.commands.authorize({
           client_id: clientId,
           response_type: 'code',
-          state: '',
+          state,
           prompt: 'none',
-          scope: ['identify', 'guilds']
+          scope: ['identify', 'guilds'],
+          // Required by Embedded App SDK: 1 = user-install context
+          integration_type: 1,
         });
         debug('Discord authorization successful');
         trackEvent('discord_auth_success');
