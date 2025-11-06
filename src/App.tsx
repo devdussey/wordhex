@@ -1,3 +1,4 @@
+import React from "react";
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate, Route, Router, Routes, supabase } from './lib';
