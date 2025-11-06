@@ -115,6 +115,27 @@ When you run `supabase_schema.sql`, you get:
 
 ---
 
+## Word Bank Table for Gameplay Validation
+
+The front-end now reads the dictionary from a dedicated `word_bank` table (separate from the curated `words` table). To seed it:
+
+1. Open **Table Editor → word_bank → Insert** and add a few sample rows (`word` column only) to confirm access.
+2. For quick batches, run:
+
+   ```sql
+   INSERT INTO word_bank (word) VALUES
+     ('example'),
+     ('hexagon'),
+     ('victory')
+   ON CONFLICT (word) DO NOTHING;
+   ```
+
+3. For large dictionaries, use Supabase’s **Import data** flow with a CSV containing a single `word` column, or hit the REST endpoint with batched inserts from a script.
+
+Row Level Security allows anonymous `SELECT` access, while inserts/updates/deletes are restricted to the service role by default. Adjust the policies if you want authenticated players to contribute new words.
+
+---
+
 ## After Setup is Complete
 
 Once you've executed the schema:
