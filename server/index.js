@@ -1017,6 +1017,19 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 
 oauthStatePruneInterval.unref?.();
 
+// Discord interactions endpoint for activity validation
+app.post('/interactions', (req, res) => {
+  const { type } = req.body;
+
+  // Discord sends a PING interaction for verification
+  if (type === 1) {
+    return res.json({ type: 1 });
+  }
+
+  // Handle other interaction types if needed
+  res.status(400).json({ error: 'Unknown interaction type' });
+});
+
 let shuttingDown = false;
 function shutdown(signal) {
   if (shuttingDown) {
