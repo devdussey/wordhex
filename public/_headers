@@ -1,9 +1,0 @@
-/*
-  X-Frame-Options: ALLOWALL
-  Content-Security-Policy: frame-ancestors https://*.discord.com https://*.discordapp.com https://*.discordsays.com; connect-src 'self' https://*.discord.com https://discord.com https://*.discordapp.com https://*.discordsays.com https://wordhex-backend-production.up.railway.app https://*.railway.app wss://wordhex-backend-production.up.railway.app wss://*.railway.app https://vitals.vercel-insights.com sentry-ipc: data: blob:;
-  Cross-Origin-Opener-Policy: same-origin-allow-popups
-  Cross-Origin-Embedder-Policy: credentialless
-  Access-Control-Allow-Origin: *
-  Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE
-  Access-Control-Allow-Headers: Content-Type, Authorization, X-Client-Info, Apikey
-  */

@@ -1,227 +1,249 @@
-import { useState } from 'react';
-import { Analytics } from '@vercel/analytics/react';
-import { MainMenu } from './components/MainMenu';
-import { TurnBasedGame } from './components/TurnBasedGame';
-import { Statistics } from './components/Statistics';
-import { Options } from './components/Options';
-import { LobbySelection } from './components/LobbySelection';
-import { LobbyRoom } from './components/LobbyRoom';
-import { Login } from './components/Login';
-import { Leaderboard } from './components/Leaderboard';
-import { useAuth } from './contexts/AuthContext';
-import { useError } from './contexts/ErrorContext';
-import { useNetworkStatus } from './hooks/useNetworkStatus';
-import { ErrorNotification, OfflineBanner } from './components/ErrorNotification';
-import { api } from './services/api';
-import { ErrorType, ErrorSeverity } from './types/errors';
-import type { LobbySummary, MatchSummary } from './types/api';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { isSupabaseConfigured, supabase } from "./lib/supabaseClient";
+import Dashboard from "./pages/Dashboard";
+import Game from "./pages/Game";
+import Leaderboard from "./pages/Leaderboard";
+import Login from "./pages/Login";
+import type { AuthSession, LocalSession, PlayerStats } from "./types";
 
-type Page =
-  | 'menu'
-  | 'lobby-selection'
-  | 'lobby-room'
-  | 'play'
-  | 'statistics'
-  | 'leaderboard'
-  | 'options';
+const LOCAL_SESSION_KEY = "wordhex:local-session";
+const STATS_STORAGE_KEY = "wordhex:stats";
 
-function App() {
-  const { user, getUsername, loading } = useAuth();
-  const { currentError, clearError, showError, logError } = useError();
-  const networkStatus = useNetworkStatus();
-  const [currentPage, setCurrentPage] = useState<Page>('menu');
-  const [activeLobby, setActiveLobby] = useState<LobbySummary | null>(null);
-  const [isHost, setIsHost] = useState(false);
-  const [currentMatch, setCurrentMatch] = useState<MatchSummary | null>(null);
-  const defaultServerId = import.meta.env.VITE_SERVER_ID || 'dev-server-123';
-  const [serverId] = useState(() => {
-    if (typeof window === 'undefined') {
-      return defaultServerId;
-    }
+const DEFAULT_STATS: PlayerStats = {
+  gamesPlayed: 0,
+  totalScore: 0,
+  bestScore: 0,
+  totalWordsFound: 0,
+  recentWords: [],
+};
 
-    const discordContext = window.__WORDHEX_DISCORD_CONTEXT__;
-    if (discordContext?.guildId) {
-      return discordContext.guildId;
-    }
-
-    const url = new URL(window.location.href);
-    const urlServerId = url.searchParams.get('serverId')?.trim();
-    if (urlServerId) {
-      try {
-        window.localStorage.setItem('wordhex_server_id', urlServerId);
-      } catch {
-        // Ignore storage errors (e.g. privacy mode)
-      }
-      return urlServerId;
-    }
-
-    try {
-      const stored = window.localStorage.getItem('wordhex_server_id');
-      if (stored) {
-        return stored;
-      }
-    } catch {
-      // Ignore storage access issues
-    }
-
-    return defaultServerId;
-  });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950 flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-400 border-t-transparent mx-auto mb-6" />
-          <h2 className="text-3xl font-bold text-white">Connecting to WordHex.</h2>
-          <p className="text-purple-200 mt-2">Getting your player profile ready.</p>
-        </div>
-      </div>
-    );
+function loadStats(): PlayerStats {
+  if (typeof window === "undefined") {
+    return DEFAULT_STATS;
   }
 
-  if (!user) {
-    return <Login />;
+  try {
+    const raw = window.localStorage.getItem(STATS_STORAGE_KEY);
+    if (!raw) {
+      return DEFAULT_STATS;
+    }
+    const parsed = JSON.parse(raw) as PlayerStats;
+    return {
+      ...DEFAULT_STATS,
+      ...parsed,
+      recentWords: Array.isArray(parsed.recentWords) ? parsed.recentWords : [],
+    };
+  } catch (error) {
+    console.error("Unable to parse stored stats", error);
+    return DEFAULT_STATS;
   }
-  const playerName = getUsername();
-  const playerId = user.id;
+}
 
-  const handlePlayClick = () => {
-    setCurrentPage('lobby-selection');
+function loadLocalSession(): LocalSession | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(LOCAL_SESSION_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as LocalSession;
+    return parsed;
+  } catch (error) {
+    console.error("Unable to parse stored session", error);
+    return null;
+  }
+}
+
+function randomId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function createDemoSession(): LocalSession {
+  const demoNames = [
+    "Hex Adventurer",
+    "Puzzle Voyager",
+    "Letter Whisperer",
+    "Grid Master",
+  ];
+  const username = demoNames[Math.floor(Math.random() * demoNames.length)];
+  return {
+    id: randomId(),
+    created_at: new Date().toISOString(),
+    provider: "demo",
+    user: {
+      id: randomId(),
+      username,
+      email: undefined,
+      avatar_url: `https://avatar.vercel.sh/${encodeURIComponent(username)}`,
+    },
   };
-  const handleStartLobby = async ({ isPrivate = false }: { isPrivate?: boolean } = {}) => {
-    try {
-      const response = await api.lobby.create({
-        hostId: playerId,
-        username: playerName,
-        serverId,
-        isPrivate,
+}
+
+export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [stats, setStats] = useState<PlayerStats>(() => loadStats());
+  const [loadingSession, setLoadingSession] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!supabase) {
+      const local = loadLocalSession();
+      if (isMounted) {
+        setSession(local);
+        setLoadingSession(false);
+      }
+
+      const sync = (event: StorageEvent) => {
+        if (event.key === LOCAL_SESSION_KEY) {
+          setSession(loadLocalSession());
+        }
+        if (event.key === STATS_STORAGE_KEY) {
+          setStats(loadStats());
+        }
+      };
+
+      window.addEventListener("storage", sync);
+      return () => {
+        isMounted = false;
+        window.removeEventListener("storage", sync);
+      };
+    }
+
+    supabase
+      .auth.getSession()
+      .then(({ data }) => {
+        if (!isMounted) {
+          return;
+        }
+        setSession(data.session);
+        setLoadingSession(false);
+      })
+      .catch((error) => {
+        console.error("Failed to fetch Supabase session", error);
+        setLoadingSession(false);
       });
-      const lobby = response?.lobby;
-      if (!lobby) {
-        throw new Error('Failed to create lobby');
-      }
-      setActiveLobby(lobby);
-      setIsHost(true);
-      setCurrentPage('lobby-room');
-    } catch (error) {
-      logError(error, ErrorType.NETWORK, ErrorSeverity.HIGH, 'Could not create lobby');
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
+    return () => {
+      isMounted = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
     }
-  };
+    window.localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(stats));
+  }, [stats]);
 
-  const handleStartGame = (match: MatchSummary) => {
-    setCurrentMatch(match);
-    setCurrentPage('play');
-  };
+  const handleSignIn = useCallback(async () => {
+    if (supabase) {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "discord",
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
 
-  const handlePlayAgain = async () => {
-    setCurrentMatch(null);
+      if (error) {
+        throw error;
+      }
 
-    if (isHost) {
-      await handleStartLobby({ isPrivate: false });
+      if (data?.url) {
+        window.location.href = data.url;
+      }
       return;
     }
 
-    setActiveLobby(null);
-    setIsHost(false);
-    setCurrentPage('lobby-selection');
-  };
+    const demoSession = createDemoSession();
+    window.localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(demoSession));
+    setSession(demoSession);
+  }, []);
 
-  const handleLobbyJoined = (lobby: LobbySummary) => {
-    setActiveLobby(lobby);
-    setIsHost(false);
-    setCurrentPage('lobby-room');
-  };
-
-  const handleJoinSession = async (code: string) => {
-    try {
-      const response = await api.lobby.join({
-        code,
-        userId: playerId,
-        username: playerName,
-      });
-      const lobby = response?.lobby;
-      if (!lobby) {
-        throw new Error('Lobby not found');
+  const handleSignOut = useCallback(async () => {
+    if (supabase) {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error("Failed to sign out", error);
       }
-      handleLobbyJoined(lobby);
-    } catch (error) {
-      const appError = logError(
-        error,
-        ErrorType.NETWORK,
-        ErrorSeverity.MEDIUM,
-        error instanceof Error ? error.message : 'Failed to join lobby'
-      );
-      showError(appError);
     }
-  };
 
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'menu':
-        return <MainMenu onNavigate={(page) => page === 'play' ? handlePlayClick() : setCurrentPage(page)} />;
-      case 'lobby-selection':
-        return (
-          <LobbySelection
-            onStartLobby={({ isPrivate }) => handleStartLobby({ isPrivate })}
-            onJoinSession={handleJoinSession}
-            onBack={() => setCurrentPage('menu')}
-            serverId={serverId}
-            onJoinLobby={handleLobbyJoined}
-          />
-        );
-      case 'lobby-room':
-        return activeLobby ? (
-          <LobbyRoom
-            lobbyId={activeLobby.id}
-            lobbyCode={activeLobby.code}
-            playerId={playerId}
-            playerName={playerName}
-            isHost={isHost}
-            onStartGame={handleStartGame}
-            onLeave={() => {
-              setActiveLobby(null);
-              setCurrentMatch(null);
-              setIsHost(false);
-              setCurrentPage('menu');
-            }}
-          />
-        ) : null;
-      case 'play':
-        return (
-          <TurnBasedGame
-            onBack={() => {
-              setCurrentMatch(null);
-              setActiveLobby(null);
-              setIsHost(false);
-              setCurrentPage('menu');
-            }}
-            serverId={serverId}
-            isHost={isHost}
-            match={currentMatch}
-            onPlayAgain={handlePlayAgain}
-          />
-        );
-      case 'statistics':
-        return <Statistics onBack={() => setCurrentPage('menu')} />;
-      case 'leaderboard':
-        return <Leaderboard onBack={() => setCurrentPage('menu')} />;
-      case 'options':
-        return <Options onBack={() => setCurrentPage('menu')} />;
-      default:
-        return <MainMenu onNavigate={(page) => page === 'play' ? handlePlayClick() : setCurrentPage(page)} />;
-    }
-  };
+    window.localStorage.removeItem(LOCAL_SESSION_KEY);
+    setSession(null);
+  }, []);
+
+  const handleStatsChange = useCallback((next: PlayerStats) => {
+    setStats(next);
+  }, []);
+
+  const appShell = useMemo(
+    () => (
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            <Login
+              loading={loadingSession}
+              session={session}
+              supabaseReady={isSupabaseConfigured}
+              onSignIn={handleSignIn}
+            />
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute loading={loadingSession} session={session}>
+              {session ? <Dashboard session={session} stats={stats} /> : null}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leaderboard"
+          element={
+            <ProtectedRoute loading={loadingSession} session={session}>
+              {session ? <Leaderboard session={session} stats={stats} /> : null}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/game"
+          element={
+            <ProtectedRoute loading={loadingSession} session={session}>
+              {session ? (
+                <Game session={session} stats={stats} onStatsChange={handleStatsChange} />
+              ) : null}
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={<Navigate to={session ? "/dashboard" : "/login"} replace />}
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    ),
+    [handleSignIn, handleStatsChange, loadingSession, session, stats],
+  );
 
   return (
-    <>
-      {renderPage()}
-      <ErrorNotification error={currentError} onDismiss={clearError} />
-      <OfflineBanner show={!networkStatus.online} />
-      <Analytics />
-    </>
+    <BrowserRouter>
+      {session ? <Navbar session={session} onSignOut={handleSignOut} /> : null}
+      {appShell}
+    </BrowserRouter>
   );
 }
-
-export default App;
-
-
