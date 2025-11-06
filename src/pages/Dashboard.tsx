@@ -88,7 +88,7 @@ export function Dashboard({ session }: DashboardProps) {
     session.user.id;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-fuchsia-950 pb-16">
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-fuchsia-950 pb-16">
       <div className="mx-auto max-w-6xl px-6 py-12 text-purple-100">
         <header className="mb-10">
           <p className="text-sm uppercase tracking-[0.4em] text-purple-300">Welcome back</p>
@@ -174,6 +174,6 @@ export function Dashboard({ session }: DashboardProps) {
           </>
         )}
       </div>
-    </div>
+    </main>
   );
 }

@@ -341,7 +341,7 @@ export function Game({ session }: GameProps) {
   }, null);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 text-slate-100">
+    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 text-slate-100">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 left-1/2 h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-fuchsia-500/20 blur-3xl" />
         <div className="absolute -bottom-28 -left-20 h-[22rem] w-[22rem] rounded-full bg-blue-500/10 blur-3xl" />
@@ -606,6 +606,6 @@ export function Game({ session }: GameProps) {
           </aside>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

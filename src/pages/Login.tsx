@@ -34,7 +34,7 @@ export function Login({ session }: LoginProps) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950 px-6 py-12">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950 px-6 py-12">
       <div className="w-full max-w-md rounded-3xl border border-purple-800/60 bg-purple-900/40 p-10 text-center shadow-2xl">
         <div className="mb-6 flex items-center justify-center">
           <img src="/Dorion_zIkK0aVc6b.png" alt="WordHex" className="h-32 w-32" />
@@ -69,6 +69,6 @@ export function Login({ session }: LoginProps) {
         </button>
         <p className="mt-4 text-xs text-purple-300">Discord authentication is required to play WordHex.</p>
       </div>
-    </div>
+    </main>
   );
 }

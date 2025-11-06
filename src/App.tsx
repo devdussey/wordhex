@@ -21,12 +21,12 @@ function OAuthCallback() {
   }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950">
       <div className="flex flex-col items-center gap-4 text-purple-100">
         <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
         <p>Completing sign in...</p>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -57,12 +57,12 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950">
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-950 via-purple-950 to-fuchsia-950">
         <div className="flex flex-col items-center gap-4 text-purple-100">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-purple-400 border-t-transparent" />
           <p>Loading...</p>
         </div>
-      </div>
+      </main>
     );
   }
 

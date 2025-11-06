@@ -53,7 +53,7 @@ export function Leaderboard({ session }: LeaderboardProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-fuchsia-950 pb-16">
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-fuchsia-950 pb-16">
       <div className="mx-auto max-w-4xl px-6 py-12 text-purple-100">
         <header className="mb-10 text-center">
           <h1 className="text-4xl font-bold text-white">Global Leaderboard</h1>
@@ -108,6 +108,6 @@ export function Leaderboard({ session }: LeaderboardProps) {
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }
