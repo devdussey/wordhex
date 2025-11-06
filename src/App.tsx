@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate, Route, Router, Routes, supabase } from './lib';
-import { Navbar, ProtectedRoute } from './components';
+import { Navbar, ProtectedRoute, ErrorBoundary } from './components';
 import { Login, Dashboard, Leaderboard, Game } from './pages';
 
 function OAuthCallback() {
@@ -67,29 +67,39 @@ export default function App() {
   }
 
   return (
-    <Router>
-      {session && <Navbar user={session.user} onSignOut={() => void handleSignOut()} />}
-      <Routes>
-        <Route path="/callback" element={<OAuthCallback />} />
-        <Route path="/login" element={<Login session={session} />} />
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute session={session}>{(activeSession: Session) => <Dashboard session={activeSession} />}</ProtectedRoute>
-          }
-        />
-        <Route
-          path="/leaderboard"
-          element={
-            <ProtectedRoute session={session}>{(activeSession: Session) => <Leaderboard session={activeSession} />}</ProtectedRoute>
-          }
-        />
-        <Route
-          path="/game"
-          element={<ProtectedRoute session={session}>{(activeSession: Session) => <Game session={activeSession} />}</ProtectedRoute>}
-        />
-        <Route path="*" element={<Navigate to={session ? '/' : '/login'} replace />} />
-      </Routes>
-    </Router>
+    <ErrorBoundary context="App">
+      <Router>
+        {session && <Navbar user={session.user} onSignOut={() => void handleSignOut()} />}
+        <Routes>
+          <Route path="/callback" element={<OAuthCallback />} />
+          <Route path="/login" element={<Login session={session} />} />
+          <Route
+            path="/"
+            element={
+              <ErrorBoundary context="Dashboard">
+                <ProtectedRoute session={session}>{(activeSession: Session) => <Dashboard session={activeSession} />}</ProtectedRoute>
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/leaderboard"
+            element={
+              <ErrorBoundary context="Leaderboard">
+                <ProtectedRoute session={session}>{(activeSession: Session) => <Leaderboard session={activeSession} />}</ProtectedRoute>
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/game"
+            element={
+              <ErrorBoundary context="Game">
+                <ProtectedRoute session={session}>{(activeSession: Session) => <Game session={activeSession} />}</ProtectedRoute>
+              </ErrorBoundary>
+            }
+          />
+          <Route path="*" element={<Navigate to={session ? '/' : '/login'} replace />} />
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }
