@@ -19,6 +19,7 @@
     "prisma:seed": "node prisma/seed.js",
     "sync:vercel": "node scripts/sync-vercel-config.mjs",
     "sync:env": "node scripts/generate-env-sync.mjs",
+    "check:post-deploy": "node scripts/post-deploy-check.mjs",
     "setup:supabase": "node scripts/setup-supabase.mjs"
   },
   "dependencies": {
