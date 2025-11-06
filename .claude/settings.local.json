@@ -15,7 +15,17 @@
       "Bash(npm run prisma:seed:*)",
       "Bash(npx prisma:*)",
       "Bash(timeout 10 npm run server:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nConfigure Supabase and update frontend environment\n\nChanges:\n- Updated .env with correct Supabase connection strings\n- Fixed setup-supabase.mjs script to include --schema parameter\n- Reset Supabase database and applied schema migrations\n- Seeded database with initial data\n- Updated vercel.json and package.json CSP header to include WebSocket URL\n- Verified backend server starts successfully\n\nThe app is now configured to use Supabase PostgreSQL database with Railway backend hosting.\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote add:*)",
+      "Bash(railway link:*)",
+      "Bash(railway projects:*)",
+      "Bash(railway list:*)",
+      "Bash(railway status:*)",
+      "Bash(railway init:*)",
+      "WebFetch(domain:discord.com)"
     ],
     "deny": [],
     "ask": []

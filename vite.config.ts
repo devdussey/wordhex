@@ -5,6 +5,12 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'examinations-registry-animals-recommendations.trycloudflare.com',
+      '*.trycloudflare.com'
+    ],
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
