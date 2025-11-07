@@ -1,4 +1,4 @@
-import { NavLink } from '../lib/router';
+import { NavLink } from '../lib';
 import type { Session } from '@supabase/supabase-js';
 
 type NavbarProps = {

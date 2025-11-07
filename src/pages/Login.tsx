@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Navigate } from '../lib/router';
+import { Navigate } from '../lib';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 
