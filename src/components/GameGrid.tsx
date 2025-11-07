@@ -167,6 +167,9 @@ export function GameGrid({
                   }
                 }}
                 disabled={gameOver}
+                aria-disabled={gameOver}
+                aria-label={`Tile ${tile.letter}${tile.isGem ? ' (Gem)' : ''}${tile.multiplier ? ` ${getMultiplierText(tile.multiplier)}` : ''}`}
+                tabIndex={gameOver ? -1 : 0}
                 className={`
                   relative w-20 h-20 rounded-lg font-bold text-3xl
                   transition-all duration-150 transform

@@ -38,8 +38,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <h1 className="mb-2 text-2xl font-bold text-red-400">Something went wrong</h1>
               <p className="text-purple-200">{this.state.error?.message || 'An unexpected error occurred'}</p>
               <button
+                type="button"
                 onClick={() => window.location.reload()}
-                className="mt-4 rounded-lg bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700"
+                aria-label="Reload page after error"
+                className="mt-4 rounded-lg bg-purple-600 px-4 py-2 text-white transition-colors hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-400"
               >
                 Reload Page
               </button>

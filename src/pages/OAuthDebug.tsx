@@ -312,26 +312,32 @@ export function OAuthDebug() {
             <button
               onClick={testDiscordOAuth}
               disabled={testingOAuth}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 text-white rounded-lg font-semibold transition-colors"
+              aria-disabled={testingOAuth}
+              aria-label="Test Discord OAuth authentication flow"
+              tabIndex={testingOAuth ? -1 : 0}
+              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
             >
               {testingOAuth ? 'Testing...' : 'Test Discord OAuth'}
             </button>
             <button
               onClick={testSupabaseConnection}
-              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors"
+              aria-label="Test Supabase database connection"
+              className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-purple-400"
             >
               Test Supabase Connection
             </button>
             <button
               onClick={loadDebugInfo}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+              aria-label="Refresh diagnostic information"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               Refresh Debug Info
             </button>
             {debugInfo?.session.isAuthenticated && (
               <button
                 onClick={signOut}
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
+                aria-label="Sign out of current session"
+                className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
               >
                 Sign Out
               </button>
