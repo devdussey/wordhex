@@ -51,7 +51,8 @@ export function Login({ session }: LoginProps) {
               <button
                 type="button"
                 onClick={() => setError(null)}
-                className="text-xs font-semibold text-red-100 hover:text-white"
+                aria-label="Dismiss error message"
+                className="text-xs font-semibold text-red-100 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-400"
               >
                 Dismiss
               </button>
@@ -63,6 +64,9 @@ export function Login({ session }: LoginProps) {
           type="button"
           onClick={handleDiscordLogin}
           disabled={loading}
+          aria-disabled={loading}
+          aria-label="Sign in with Discord"
+          tabIndex={loading ? -1 : 0}
           className="mt-8 w-full rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-4 text-sm font-semibold text-white shadow-lg transition hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-2 focus:ring-purple-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? 'Redirecting…' : 'Continue with Discord'}

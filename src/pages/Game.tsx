@@ -429,6 +429,9 @@ export function Game({ session }: GameProps) {
                         key={action.key}
                         onClick={action.onClick}
                         disabled={action.disabled}
+                        aria-disabled={action.disabled}
+                        aria-label={action.label}
+                        tabIndex={action.disabled ? -1 : 0}
                         className={`group relative overflow-hidden rounded-[22px] border border-white/10 bg-white/5 px-5 py-4 text-left transition ${interactiveClass}`}
                       >
                         <div className={`absolute inset-0 bg-gradient-to-r ${action.gradient} opacity-0 transition group-hover:opacity-20`} />
@@ -471,6 +474,9 @@ export function Game({ session }: GameProps) {
                         key={ability.key}
                         onClick={ability.onClick}
                         disabled={ability.disabled}
+                        aria-disabled={ability.disabled}
+                        aria-label={`${ability.label} - ${ability.description}`}
+                        tabIndex={ability.disabled ? -1 : 0}
                         className={`group relative flex flex-col rounded-2xl border border-amber-200/15 bg-black/30 px-4 py-4 text-left transition ${abilityClass}`}
                       >
                         <div className="flex items-center justify-between text-amber-100">
@@ -551,8 +557,10 @@ export function Game({ session }: GameProps) {
                     Final score {gameState.score.toLocaleString()}
                   </p>
                   <button
+                    type="button"
                     onClick={handleNewGame}
-                    className="mt-4 w-full rounded-xl bg-gradient-to-r from-fuchsia-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-fuchsia-600 hover:to-indigo-600"
+                    aria-label="Start a new game round"
+                    className="mt-4 w-full rounded-xl bg-gradient-to-r from-fuchsia-500 to-indigo-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-fuchsia-600 hover:to-indigo-600 focus:outline-none focus:ring-2 focus:ring-fuchsia-400"
                   >
                     Start New Round
                   </button>
