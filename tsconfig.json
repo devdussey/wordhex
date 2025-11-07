@@ -15,7 +15,10 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": {
+      "@discord/embedded-app-sdk": ["./src/stubs/discord-embedded-app-sdk.ts"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "tsconfig.node.json" }]

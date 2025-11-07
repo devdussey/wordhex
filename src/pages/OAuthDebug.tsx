@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { discordSdk } from '../lib/discordSdk';
-import type { Session } from '@supabase/supabase-js';
+import type { User } from '@supabase/supabase-js';
+import type { DiscordUser } from '../lib/discordSdk';
 
 type DebugInfo = {
   environment: {
@@ -13,7 +14,7 @@ type DebugInfo = {
   };
   session: {
     isAuthenticated: boolean;
-    user: any | null;
+    user: Pick<User, 'id' | 'email' | 'user_metadata'> | null;
     expiresAt: string | null;
   };
   oauth: {
@@ -24,7 +25,7 @@ type DebugInfo = {
   discord: {
     isEmbedded: boolean;
     sdkReady: boolean;
-    user: any | null;
+    user: DiscordUser | null;
   };
   errors: string[];
 };
@@ -38,7 +39,7 @@ export function OAuthDebug() {
     loadDebugInfo();
   }, []);
 
-  const loadDebugInfo = async () => {
+  const loadDebugInfo = async (): Promise<void> => {
     setLoading(true);
     const errors: string[] = [];
 
@@ -90,7 +91,7 @@ export function OAuthDebug() {
           user: session?.user ? {
             id: session.user.id,
             email: session.user.email,
-            metadata: session.user.user_metadata,
+            user_metadata: session.user.user_metadata,
           } : null,
           expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
         },
@@ -106,8 +107,9 @@ export function OAuthDebug() {
         },
         errors,
       });
-    } catch (error) {
-      errors.push(`Failed to load debug info: ${error}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      errors.push(`Failed to load debug info: ${errorMessage}`);
       setDebugInfo({
         environment: { supabaseUrl: undefined, supabaseKeyExists: false, discordClientId: undefined, discordWebhook: false, environment: undefined },
         session: { isAuthenticated: false, user: null, expiresAt: null },
@@ -120,7 +122,7 @@ export function OAuthDebug() {
     }
   };
 
-  const testDiscordOAuth = async () => {
+  const testDiscordOAuth = async (): Promise<void> => {
     setTestingOAuth(true);
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -136,27 +138,29 @@ export function OAuthDebug() {
         // Will redirect automatically
         console.log('OAuth initiated:', data);
       }
-    } catch (error) {
-      alert(`OAuth Test Failed: ${error}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`OAuth Test Failed: ${errorMessage}`);
     } finally {
       setTestingOAuth(false);
     }
   };
 
-  const testSupabaseConnection = async () => {
+  const testSupabaseConnection = async (): Promise<void> => {
     try {
-      const { data, error } = await supabase.from('player_stats').select('count');
+      const { error } = await supabase.from('player_stats').select('count');
       if (error) {
         alert(`Supabase Connection Error: ${error.message}`);
       } else {
         alert('Supabase connection successful!');
       }
-    } catch (error) {
-      alert(`Connection test failed: ${error}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Connection test failed: ${errorMessage}`);
     }
   };
 
-  const signOut = async () => {
+  const signOut = async (): Promise<void> => {
     await supabase.auth.signOut();
     await loadDebugInfo();
   };

@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -25,5 +26,10 @@ export default defineConfig({
   },
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+  },
+  resolve: {
+    alias: {
+      '@discord/embedded-app-sdk': fileURLToPath(new URL('./src/stubs/discord-embedded-app-sdk.ts', import.meta.url)),
+    },
   },
 });
