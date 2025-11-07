@@ -1,13 +1,13 @@
 
-// Router exports
+// Router exports (custom router implementation)
 export {
-  BrowserRouter as Router,
+  Router,
   Routes,
   Route,
   Navigate,
   NavLink,
   useLocation,
-} from "react-router-dom";
+} from "./router";
 
 // Supabase client
 export { supabase } from "./supabaseClient";
