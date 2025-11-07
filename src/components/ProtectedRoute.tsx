@@ -1,6 +1,6 @@
 import type { Session } from '@supabase/supabase-js';
 import type { ReactNode } from 'react';
-import { Navigate } from '../lib/router';
+import { Navigate } from '../lib';
 
 type ProtectedRouteProps = {
   session: Session | null;

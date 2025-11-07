@@ -1,4 +1,4 @@
-export { default as Login } from "./Login";
-export { default as Dashboard } from "./Dashboard";
-export { default as Leaderboard } from "./Leaderboard";
-export { default as Game } from "./Game";
+export { Login } from "./Login";
+export { Dashboard } from "./Dashboard";
+export { Leaderboard } from "./Leaderboard";
+export { Game } from "./Game";
