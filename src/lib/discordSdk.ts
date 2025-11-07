@@ -26,6 +26,11 @@ export type DiscordAuth = {
   };
 };
 
+type DiscordGuildContext = {
+  guild_id: string;
+  channel_id?: string;
+};
+
 class DiscordSDKManager {
   private sdk: DiscordSDK | null = null;
   private auth: DiscordAuth | null = null;
@@ -220,7 +225,7 @@ class DiscordSDKManager {
   /**
    * Get guild/server information
    */
-  async getGuild(): Promise<any> {
+  async getGuild(): Promise<DiscordGuildContext | null> {
     if (!this.sdk || !this.isReady) {
       return null;
     }
