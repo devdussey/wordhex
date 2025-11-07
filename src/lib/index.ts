@@ -19,3 +19,7 @@ export { validWords } from "./wordlist";
 // Discord logging helpers
 export { discordLogger } from "./discordLogger";
 export type { LogLevel, LogEntry } from "./discordLogger";
+
+// Discord Embedded SDK
+export { discordSdk } from "./discordSdk";
+export type { DiscordUser, DiscordAuth } from "./discordSdk";
