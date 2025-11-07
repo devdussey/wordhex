@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Navigate, Route, Router, Routes, supabase, discordLogger } from './lib';
 import { Navbar, ProtectedRoute, ErrorBoundary } from './components';
-import { Login, Dashboard, Leaderboard, Game } from './pages';
+import { Login, Dashboard, Leaderboard, Game, OAuthDebug } from './pages';
 
 function OAuthCallback() {
   useEffect(() => {
@@ -107,6 +107,7 @@ export default function App() {
               </ErrorBoundary>
             }
           />
+          <Route path="/debug" element={<OAuthDebug />} />
           <Route path="*" element={<Navigate to={session ? '/' : '/login'} replace />} />
         </Routes>
       </Router>
